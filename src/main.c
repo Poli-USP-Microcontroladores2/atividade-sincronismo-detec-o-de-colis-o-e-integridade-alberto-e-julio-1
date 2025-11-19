@@ -51,6 +51,7 @@ enum state {
 };
 atomic_t g_current_state = ATOMIC_INIT(STATE_RECEIVE);
 atomic_t g_is_receiving = ATOMIC_INIT(1); // 0 for false, 1 for true
+atomic_t g_channel_occupied = ATOMIC_INIT(0); // 0: Livre, 1: Ocupado
 
 /* --- Threads --- */
 k_tid_t transmit_tid;
@@ -78,6 +79,9 @@ void serial_cb(const struct device *dev, void *user_data)
 	if (!uart_irq_rx_ready(uart_dev)) {
 		return;
 	}
+
+	// 1. Detecção de Ocupação: Sempre que a interrupção dispara, o canal está ocupado.
+    atomic_set(&g_channel_occupied, 1);
 
 	bool is_receiving = atomic_get(&g_is_receiving);
 
@@ -117,23 +121,52 @@ void print_uart(char *buf)
 
 void transmit_thread(void *p1, void *p2, void *p3)
 {
-	uint8_t random_char_selector;
-	while (1) {
-		sys_rand_get(&random_char_selector, sizeof(random_char_selector));
-		switch (random_char_selector % 3) {
-		case 0:
-			print_uart("Message 1\r\n");
-			break;
-		case 1:
-			print_uart("Option 2\r\n");
-			break;
-		case 2:
-			print_uart("Third Option\r\n");
-			break;
-		}
-		// Sleep to avoid flooding the channel
-		k_msleep(500);
-	}
+    uint8_t random_char_selector;
+    char *msg_to_send; 
+
+    while (1) {
+        sys_rand_get(&random_char_selector, sizeof(random_char_selector));
+        switch (random_char_selector % 3) {
+        case 0:
+            msg_to_send = "Message 1\r\n";
+            break;
+        case 1:
+            msg_to_send = "Option 2\r\n";
+            break;
+        case 2:
+            msg_to_send = "Third Option\r\n";
+            break;
+        default:
+            msg_to_send = "Default\r\n";
+        }
+        
+        // 1. Limpa o flag de ocupação para 'escutar' o canal
+        atomic_set(&g_channel_occupied, 0); 
+        
+        // 2. Pequena espera para Carrier Sense
+        k_msleep(5); 
+        
+        // 3. Checa o status do canal
+        if (atomic_get(&g_channel_occupied) == 0) {
+            // Canal livre: Transmite.
+            print_uart(msg_to_send);
+        } else {
+            // Colisão detectada: Aborta a TX e sinaliza (Amarelo = Vermelho + Verde).
+            LOG_WRN("Colisão detectada! Canal ocupado. Abortando TX.");
+            
+            // SINALIZAÇÃO VISUAL DE COLISÃO (LED AMARELO)
+            gpio_pin_set_dt(&led_red, 1);
+            gpio_pin_set_dt(&led_green, 1); 
+            
+            k_msleep(100); // Pisca por 100ms
+            
+            gpio_pin_set_dt(&led_red, 0);
+            gpio_pin_set_dt(&led_green, 0);
+        }
+        
+        // Sleep para evitar flooding e respeitar o ciclo de transmissão.
+        k_msleep(500);
+    }
 }
 
 void receive_thread(void *p1, void *p2, void *p3)
