@@ -114,6 +114,13 @@ void serial_cb(const struct device *dev, void *user_data)
 
             case WAIT_SIZE_LSB:
                 g_expected_size |= (uint16_t)c;
+
+				if (g_expected_size >= sizeof(rx_buf)) {
+                    LOG_ERR("Tamanho de pacote declarado (%u) é muito grande!", g_expected_size);
+                    g_rx_state = WAIT_SIZE_MSB;
+                    break;
+                }
+				
                 g_rx_state = WAIT_CHECKSUM;
                 break;
 
@@ -123,9 +130,9 @@ void serial_cb(const struct device *dev, void *user_data)
                 break;
 
             case RECEIVING_PAYLOAD:
-                if (rx_buf_pos < (sizeof(rx_buf) - 1)) {
-                    rx_buf[rx_buf_pos++] = c;
-                }
+                if (rx_buf_pos < g_expected_size && rx_buf_pos < (sizeof(rx_buf) - 1)) {
+					rx_buf[rx_buf_pos++] = c;
+				}
                 
                 // Verifica se o payload completo foi recebido
                 if (rx_buf_pos == g_expected_size) {
