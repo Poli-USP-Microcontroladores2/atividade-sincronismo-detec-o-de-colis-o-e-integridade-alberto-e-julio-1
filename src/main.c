@@ -87,23 +87,19 @@ void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, 
 
 		// Force state based on BOARD_TYPE
 		if (BOARD_TYPE == 1) { // Board B: Force Receive Mode
-			if (atomic_get(&g_current_state) != STATE_RECEIVE) {
-				k_thread_suspend(transmit_tid);
-				atomic_set(&g_current_state, STATE_RECEIVE);
-				atomic_set(&g_is_receiving, 1);
-				k_msgq_purge(&uart_msgq);
-				rx_buf_pos = 0;
-				k_thread_resume(receive_tid);
-				LOG_INF("\n--- Switched to Receive Phase by Sync Button---\r\n");
-			}
+			k_thread_suspend(transmit_tid);
+			atomic_set(&g_current_state, STATE_RECEIVE);
+			atomic_set(&g_is_receiving, 1);
+			k_msgq_purge(&uart_msgq);
+			rx_buf_pos = 0;
+			k_thread_resume(receive_tid);
+			LOG_INF("\n--- Switched to Receive Phase by Sync Button---\r\n");
 		} else { // Board A (BOARD_TYPE == 0): Force Transmit Mode
-			if (atomic_get(&g_current_state) != STATE_TRANSMIT) {
-				k_thread_suspend(receive_tid);
-				atomic_set(&g_current_state, STATE_TRANSMIT);
-				atomic_set(&g_is_receiving, 0);
-				k_thread_resume(transmit_tid);
-				LOG_INF("\n--- Switched to Transmit Phase by Sync Button ---\r\n");
-			}
+			k_thread_suspend(receive_tid);
+			atomic_set(&g_current_state, STATE_TRANSMIT);
+			atomic_set(&g_is_receiving, 0);
+			k_thread_resume(transmit_tid);
+			LOG_INF("\n--- Switched to Transmit Phase by Sync Button ---\r\n");
 		}
 		button_sync_debounce = k_cycle_get_32();
     }
