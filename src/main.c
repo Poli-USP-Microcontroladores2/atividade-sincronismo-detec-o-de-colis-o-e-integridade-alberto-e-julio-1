@@ -131,8 +131,26 @@ void serial_cb(const struct device *dev, void *user_data)
 	/* read until FIFO empty */
 	while (uart_fifo_read(uart_dev, &c, 1) == 1) {
 		if (!is_receiving) {
-			// Not in receive state, just discard the character to keep FIFO clear
-			continue;
+			// Received a character while in transmit mode. This indicates a collision or sync issue.
+			// Force switch to receive mode.
+			LOG_WRN("Collision detected! Forcing switch to Receive Mode.");
+
+			// Blink Red LED to indicate collision
+			gpio_pin_set_dt(&led_red, 1);
+			k_busy_wait(100000); // 100ms busy wait
+			gpio_pin_set_dt(&led_red, 0);
+
+			// Switch to receive state
+			k_thread_suspend(transmit_tid);
+			atomic_set(&g_current_state, STATE_RECEIVE);
+			atomic_set(&g_is_receiving, 1);
+			k_msgq_purge(&uart_msgq);
+			rx_buf_pos = 0;
+			k_thread_resume(receive_tid);
+
+			// Restart the cycle timer
+			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
+			return; // Exit ISR, state has been changed.
 		}
 
 		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
