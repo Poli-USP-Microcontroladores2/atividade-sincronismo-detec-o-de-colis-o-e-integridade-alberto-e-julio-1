@@ -62,6 +62,10 @@
     "uart.h": "c",
     "kernel.h": "c",
     "gpio.h": "c",
-    "printk.h": "c"
+    "printk.h": "c",
+    "device.h": "c",
+    "atomic.h": "c",
+    "time_units.h": "c",
+    "log.h": "c"
   }
 }

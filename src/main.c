@@ -16,14 +16,20 @@ LOG_MODULE_REGISTER(LOG_INF_APP, LOG_LEVEL_INF);
 #define STACKSIZE 512
 #define MSG_SIZE 32
 #define PRIORITY 5
+#define BOARD_TYPE 1 //Placa A: 0, Placa B: 1 Serve para definir o comportamento inicial ao pressionar o botão de sincronismo.
 
 //LEDs
 #define LED_GREEN_NODE DT_ALIAS(led0)  // Green LED (PTA19)
 #define LED_BLUE_NODE  DT_ALIAS(led1)  // Blue LED (PTA18)
 #define LED_RED_NODE   DT_ALIAS(led2)  // Red LED (PTA17)
+#define BUTTON_NODE_SYNCB DT_NODELABEL(user_button_0) //Botao de sincronismo PTA16
+
 static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(LED_GREEN_NODE, gpios);
 static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(LED_BLUE_NODE, gpios);
 static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED_RED_NODE, gpios);
+static const struct gpio_dt_spec buttonSync = GPIO_DT_SPEC_GET(BUTTON_NODE_SYNCB, gpios);
+static struct gpio_callback button_cbsync_data;
+int64_t button_sync_debounce = 0;
 
 /* queue to store up to 10 messages (aligned to 4-byte boundary) */
 K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
@@ -38,19 +44,64 @@ enum state {
 	STATE_TRANSMIT,
 	STATE_RECEIVE
 };
+
 atomic_t g_current_state = ATOMIC_INIT(STATE_TRANSMIT);
 atomic_t g_is_receiving = ATOMIC_INIT(0); // 0 for false, 1 for true
+atomic_t g_is_Idle = ATOMIC_INIT(1); //1 for true, 0 for false
 
-/* --- Threads --- */
+/* --- Threads --- Probably should just change the order...*/
 k_tid_t transmit_tid;
 struct k_thread transmit_thread_data;
 k_tid_t receive_tid;
 struct k_thread receive_thread_data;
 
+/* Forward declarations --- Same as before */
+extern struct k_timer cycle_timer;
+void print_uart(char *buf);
 
 /* receive buffer used in UART ISR callback */
 static char rx_buf[MSG_SIZE];
 static int rx_buf_pos;
+//ISR do botão de Sincronismo
+void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, uint32_t pins)
+{
+    unsigned int key = irq_lock();
+    if ((k_cyc_to_ms_floor32(k_cycle_get_32() - button_sync_debounce)) >= 100)
+    {
+		if (atomic_cas(&g_is_Idle, 1, 0)) { // If we were idle, this is the first press
+			LOG_INF("Button pressed: Exiting Idle Mode.");
+			// Start the cycle timer for the first time
+			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
+		} else {
+			LOG_INF("Button pressed: Forcing mode sync.");
+			// If not idle, just restart the timer to reset the cycle period
+			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
+		}
+
+		// Force state based on BOARD_TYPE
+		if (BOARD_TYPE == 1) { // Board B: Force Receive Mode
+			if (atomic_get(&g_current_state) != STATE_RECEIVE) {
+				k_thread_suspend(transmit_tid);
+				atomic_set(&g_current_state, STATE_RECEIVE);
+				atomic_set(&g_is_receiving, 1);
+				k_msgq_purge(&uart_msgq);
+				rx_buf_pos = 0;
+				k_thread_resume(receive_tid);
+				print_uart("--- Switched to Receive Phase by Sync ---\r\n");
+			}
+		} else { // Board A (BOARD_TYPE == 0): Force Transmit Mode
+			if (atomic_get(&g_current_state) != STATE_TRANSMIT) {
+				k_thread_suspend(receive_tid);
+				atomic_set(&g_current_state, STATE_TRANSMIT);
+				atomic_set(&g_is_receiving, 0);
+				k_thread_resume(transmit_tid);
+				print_uart("--- Switched to Transmit Phase by Sync ---\r\n");
+			}
+		}
+		button_sync_debounce = k_cycle_get_32();
+    }
+    irq_unlock(key);
+}
 
 /*
  * Read characters from UART until line end is detected. Afterwards push the
@@ -199,6 +250,13 @@ int main(void)
 		return 0;
 	}
 
+	// Sync Button
+	gpio_pin_configure_dt(&buttonSync, GPIO_INPUT | GPIO_PULL_UP);
+    gpio_pin_interrupt_configure_dt(&buttonSync, GPIO_INT_EDGE_FALLING);
+    gpio_init_callback(&button_cbsync_data, buttonSync_isr, BIT(buttonSync.pin));
+    gpio_add_callback(buttonSync.port, &button_cbsync_data);
+    button_sync_debounce = k_cycle_get_32();
+
 	/* configure interrupt and callback to receive data */
 	int ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
 
@@ -224,9 +282,10 @@ int main(void)
 			STACKSIZE, receive_thread, NULL, NULL, NULL,
 			PRIORITY, K_USER, K_NO_WAIT);
 
+	// Start with both threads suspended for Idle mode
 	k_thread_suspend(receive_tid); // Start with receive thread suspended
-
-	k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
+	k_thread_suspend(transmit_tid); // Start with transmit thread suspended
+	LOG_INF("System is in Idle Mode. Press the sync button to start.");
 
 	// The main thread can sleep
 	while(1){
