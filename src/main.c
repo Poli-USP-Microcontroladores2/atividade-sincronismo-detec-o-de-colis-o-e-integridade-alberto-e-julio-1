@@ -300,10 +300,36 @@ int main(void)
 	k_thread_suspend(receive_tid); // Start with receive thread suspended
 	k_thread_suspend(transmit_tid); // Start with transmit thread suspended
 	LOG_INF("System is in Idle Mode. Press the sync button to start.");
+	LOG_INF("Starting in receive mode in 5 seconds if no button is pressed...");
+
+	k_msleep(100); //Time to LOG/Print
+
+	// Wait for 5 seconds, checking every 100ms if the button has been pressed
+	for (int i = 0; i < 50; i++) {
+		if (atomic_get(&g_is_Idle) == 0) {
+			// Button was pressed, ISR handled the startup.
+			break;
+		}
+		k_msleep(100);
+	}
+
+	// If after 5s we are still idle, start in receive mode automatically
+	if (atomic_cas(&g_is_Idle, 1, 0)) {
+		LOG_INF("5s timeout expired. Starting automatically in Receive Mode.");
+		//Turn off the White LED
+		gpio_pin_set_dt(&led_red, 0);
+		gpio_pin_set_dt(&led_green, 0);
+		gpio_pin_set_dt(&led_blue, 0);
+		k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
+		atomic_set(&g_current_state, STATE_RECEIVE);
+		atomic_set(&g_is_receiving, 1);
+		k_thread_resume(receive_tid);
+		print_uart("--- Started in Receive Phase (Timeout) ---\r\n");
+	}
 
 	// The main thread can sleep
 	while(1){
-		k_msleep(1000); //For some reason, the system was bugging when using k_forever. Consider increasing the value if necessary, but since the cost is low...
+		k_sleep(K_FOREVER); // The main thread has nothing else to do, so it can sleep forever.
 	}
 
 	return 0;
