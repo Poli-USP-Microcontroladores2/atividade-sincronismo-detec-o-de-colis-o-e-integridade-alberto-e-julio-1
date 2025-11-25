@@ -126,9 +126,17 @@ void serial_cb(const struct device *dev, void *user_data)
 		return;
 	}
 
+	// If the system is in idle mode, ignore all incoming data.
+	if (atomic_get(&g_is_Idle)) {
+		// Read and discard all characters from the FIFO to keep it clear.
+		while (uart_fifo_read(uart_dev, &c, 1) == 1) {
+			// Do nothing with the character 'c'
+		}
+		return; // Exit the ISR
+	}
+
 	bool is_receiving = atomic_get(&g_is_receiving);
 
-	/* read until FIFO empty */
 	while (uart_fifo_read(uart_dev, &c, 1) == 1) {
 		if (!is_receiving) {
 			// Received a character while in transmit mode. This indicates a collision or sync issue.
