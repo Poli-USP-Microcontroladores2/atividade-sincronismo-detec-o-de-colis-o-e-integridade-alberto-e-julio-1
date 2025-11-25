@@ -55,13 +55,14 @@ struct k_thread transmit_thread_data;
 k_tid_t receive_tid;
 struct k_thread receive_thread_data;
 
-/* Forward declarations --- Same as before */
+/* Forward declarations --- Probably should just change the order... */
 extern struct k_timer cycle_timer;
 void print_uart(char *buf);
 
 /* receive buffer used in UART ISR callback */
 static char rx_buf[MSG_SIZE];
 static int rx_buf_pos;
+
 //ISR do botão de Sincronismo
 void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, uint32_t pins)
 {
@@ -70,10 +71,16 @@ void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, 
     {
 		if (atomic_cas(&g_is_Idle, 1, 0)) { // If we were idle, this is the first press
 			LOG_INF("Button pressed: Exiting Idle Mode.");
+			
+			//Turn off the White LED
+			gpio_pin_set_dt(&led_red, 0);
+			gpio_pin_set_dt(&led_green, 0);
+			gpio_pin_set_dt(&led_blue, 0);
+
 			// Start the cycle timer for the first time
 			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
 		} else {
-			LOG_INF("Button pressed: Forcing mode sync.");
+			LOG_INF("Button pressed: Forcing %s mode.", (BOARD_TYPE == 1) ? "Receive" : "Transmit");
 			// If not idle, just restart the timer to reset the cycle period
 			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
 		}
@@ -87,7 +94,7 @@ void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, 
 				k_msgq_purge(&uart_msgq);
 				rx_buf_pos = 0;
 				k_thread_resume(receive_tid);
-				print_uart("--- Switched to Receive Phase by Sync ---\r\n");
+				LOG_INF("\n--- Switched to Receive Phase by Sync Button---\r\n");
 			}
 		} else { // Board A (BOARD_TYPE == 0): Force Transmit Mode
 			if (atomic_get(&g_current_state) != STATE_TRANSMIT) {
@@ -95,7 +102,7 @@ void buttonSync_isr(const struct device *devsync, struct gpio_callback *cbsync, 
 				atomic_set(&g_current_state, STATE_TRANSMIT);
 				atomic_set(&g_is_receiving, 0);
 				k_thread_resume(transmit_tid);
-				print_uart("--- Switched to Transmit Phase by Sync ---\r\n");
+				LOG_INF("\n--- Switched to Transmit Phase by Sync Button ---\r\n");
 			}
 		}
 		button_sync_debounce = k_cycle_get_32();
@@ -160,6 +167,11 @@ void transmit_thread(void *p1, void *p2, void *p3)
 	uint8_t random_char_selector;
 	while (1) {
 		sys_rand_get(&random_char_selector, sizeof(random_char_selector));
+
+		// Blink blue LED to indicate a message is being sent
+		gpio_pin_set_dt(&led_blue, 1);
+		k_msleep(50); // Short blink duration
+
 		switch (random_char_selector % 3) {
 		case 0:
 			print_uart("Message 1\r\n");
@@ -171,6 +183,9 @@ void transmit_thread(void *p1, void *p2, void *p3)
 			print_uart("Third Option\r\n");
 			break;
 		}
+
+		gpio_pin_set_dt(&led_blue, 0);
+
 		// Sleep to avoid flooding the channel
 		k_msleep(500);
 	}
@@ -182,6 +197,11 @@ void receive_thread(void *p1, void *p2, void *p3)
 	while (1) {
 		// Wait forever for a message
 		if (k_msgq_get(&uart_msgq, tx_buf, K_FOREVER) == 0) {
+			// Blink green LED to indicate a message was received.
+			gpio_pin_set_dt(&led_green, 1);
+			k_msleep(50); // Short blink duration
+			gpio_pin_set_dt(&led_green, 0);
+
 			if (strcmp(tx_buf, "red") == 0) { // Case-sensitive match
 				gpio_pin_set_dt(&led_red, 1);
 				k_msleep(100);
@@ -212,9 +232,6 @@ void cycle_timer_handler(struct k_timer *timer_id)
 		rx_buf_pos = 0; // Reset buffer position
 		k_thread_resume(receive_tid);
 		print_uart("--- Receive Phase ---\r\n");
-		gpio_pin_set_dt(&led_blue, 1); // Blink Blue LED to indicate receive cycle
-		k_msleep(100);
-		gpio_pin_set_dt(&led_blue, 0);
 	} else {
 		// Suspend receive thread and switch to transmit
 		k_thread_suspend(receive_tid);
@@ -223,9 +240,6 @@ void cycle_timer_handler(struct k_timer *timer_id)
 		atomic_set(&g_is_receiving, 0); // Prevent ISR from processing data
 		k_thread_resume(transmit_tid);
 		print_uart("--- Transmission Phase ---\r\n");
-		gpio_pin_set_dt(&led_red, 1); // Blink Red LED to indicate transmit cycle
-		k_msleep(100);
-		gpio_pin_set_dt(&led_red, 0);
 	}
 }
 
@@ -241,9 +255,9 @@ int main(void)
         return 1;
     }
 
-    gpio_pin_configure_dt(&led_green, GPIO_OUTPUT_INACTIVE);
-    gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_INACTIVE);
-	gpio_pin_configure_dt(&led_blue, GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure_dt(&led_green, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_ACTIVE);
+	gpio_pin_configure_dt(&led_blue, GPIO_OUTPUT_ACTIVE);
 
 	if (!device_is_ready(uart_dev)) {
 		printk("UART device not found!");
