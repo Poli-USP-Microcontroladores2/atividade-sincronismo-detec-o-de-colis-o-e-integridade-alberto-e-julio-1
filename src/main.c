@@ -16,7 +16,7 @@ LOG_MODULE_REGISTER(LOG_INF_APP, LOG_LEVEL_INF);
 #define STACKSIZE 512
 #define MSG_SIZE 32
 #define PRIORITY 5
-#define BOARD_TYPE 1 //Placa A: 0, Placa B: 1 Serve para definir o comportamento inicial ao pressionar o botão de sincronismo.
+#define BOARD_TYPE 0 //Placa A: 0, Placa B: 1 Serve para definir o comportamento inicial ao pressionar o botão de sincronismo.
 
 //LEDs
 #define LED_GREEN_NODE DT_ALIAS(led0)  // Green LED (PTA19)
