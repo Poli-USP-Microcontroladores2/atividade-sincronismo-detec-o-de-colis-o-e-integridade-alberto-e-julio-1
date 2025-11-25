@@ -144,17 +144,25 @@ void serial_cb(const struct device *dev, void *user_data)
 			k_busy_wait(100000); // 100ms busy wait
 			gpio_pin_set_dt(&led_red, 0);
 
+			// Read and discard all characters from the FIFO to keep it clear.
+			while (uart_fifo_read(uart_dev, &c, 1) == 1) {
+				// Do nothing with the character 'c'
+			}
+			
 			// Switch to receive state
 			k_thread_suspend(transmit_tid);
 			atomic_set(&g_current_state, STATE_RECEIVE);
-			atomic_set(&g_is_receiving, 1);
+			atomic_set(&g_is_receiving, 1); // CRITICAL: Set receiving flag to true
 			k_msgq_purge(&uart_msgq);
-			rx_buf_pos = 0;
 			k_thread_resume(receive_tid);
 
 			// Restart the cycle timer
 			k_timer_start(&cycle_timer, K_MSEC(CYCLE_DURATION_MS), K_MSEC(CYCLE_DURATION_MS));
-			return; // Exit ISR, state has been changed.
+			
+			rx_buf_pos = 0; // CRITICAL: Reset buffer BEFORE processing the collision character.
+			// Update the local 'is_receiving' flag and continue processing the character that caused the collision
+			is_receiving = true;
+			// DO NOT return here. Let the loop continue to process the character 'c'.
 		}
 
 		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
@@ -186,25 +194,13 @@ void print_uart(char *buf)
 
 void transmit_thread(void *p1, void *p2, void *p3)
 {
-	uint8_t random_char_selector;
 	while (1) {
-		sys_rand_get(&random_char_selector, sizeof(random_char_selector));
-
 		// Blink blue LED to indicate a message is being sent
 		gpio_pin_set_dt(&led_blue, 1);
 		k_msleep(50); // Short blink duration
 
-		switch (random_char_selector % 3) {
-		case 0:
-			print_uart("Message 1\r\n");
-			break;
-		case 1:
-			print_uart("Option 2\r\n");
-			break;
-		case 2:
-			print_uart("Third Option\r\n");
-			break;
-		}
+		// Send the constant message
+		print_uart("#Message$\r\n");
 
 		gpio_pin_set_dt(&led_blue, 0);
 
@@ -215,15 +211,23 @@ void transmit_thread(void *p1, void *p2, void *p3)
 
 void receive_thread(void *p1, void *p2, void *p3)
 {
+	// Turn off the white LED at startup
+	gpio_pin_set_dt(&led_red, 0);
+	gpio_pin_set_dt(&led_green, 0);
+	gpio_pin_set_dt(&led_blue, 0);
 	char tx_buf[MSG_SIZE];
 	while (1) {
 		// Wait forever for a message
 		if (k_msgq_get(&uart_msgq, tx_buf, K_FOREVER) == 0) {
-			// Blink green LED to indicate a message was received.
-			gpio_pin_set_dt(&led_green, 1);
-			k_msleep(50); // Short blink duration
-			gpio_pin_set_dt(&led_green, 0);
 
+			if (strcmp(tx_buf, "#Message$") == 0) { // Case-sensitive match
+				// Blink green LED to indicate a message was received.
+				gpio_pin_set_dt(&led_green, 1);
+				k_msleep(50); // Short blink duration
+				gpio_pin_set_dt(&led_green, 0);
+			}
+
+			/*
 			if (strcmp(tx_buf, "red") == 0) { // Case-sensitive match
 				gpio_pin_set_dt(&led_red, 1);
 				k_msleep(100);
@@ -237,6 +241,7 @@ void receive_thread(void *p1, void *p2, void *p3)
 				k_msleep(100);
 				gpio_pin_set_dt(&led_blue, 0);
 			}
+			*/
 		}
 	}
 }
@@ -260,6 +265,7 @@ void cycle_timer_handler(struct k_timer *timer_id)
 
 		atomic_set(&g_current_state, STATE_TRANSMIT);
 		atomic_set(&g_is_receiving, 0); // Prevent ISR from processing data
+		rx_buf_pos = 0; // Reset buffer position
 		k_thread_resume(transmit_tid);
 		print_uart("--- Transmission Phase ---\r\n");
 	}
@@ -267,8 +273,17 @@ void cycle_timer_handler(struct k_timer *timer_id)
 
 K_TIMER_DEFINE(cycle_timer, cycle_timer_handler, NULL);
 
+/* Idle state LED work handler */
+struct k_work idle_blink_work;
+void idle_blink_handler(struct k_work *work);
+
 int main(void)
 {
+	// Turn off the white LED at startup
+	gpio_pin_set_dt(&led_red, 0);
+	gpio_pin_set_dt(&led_green, 0);
+	gpio_pin_set_dt(&led_blue, 0);
+
 	LOG_INF("Main Thread - Starting... - V: %s - %s \n", __DATE__, __TIME__);
 	k_msleep(100); //Allow time to print the log
 	// Setup LEDs
@@ -324,6 +339,9 @@ int main(void)
 	LOG_INF("System is in Idle Mode. Press the sync button to start.");
 	LOG_INF("Starting in receive mode in 5 seconds if no button is pressed...");
 
+	k_work_init(&idle_blink_work, idle_blink_handler);
+	k_work_submit(&idle_blink_work);
+
 	k_msleep(100); //Time to LOG/Print
 
 	// Wait for 5 seconds, checking every 100ms if the button has been pressed
@@ -355,4 +373,23 @@ int main(void)
 	}
 
 	return 0;
+}
+
+void idle_blink_handler(struct k_work *work)
+{
+	// Turn off the white LED at startup
+	gpio_pin_set_dt(&led_red, 0);
+	gpio_pin_set_dt(&led_green, 0);
+	gpio_pin_set_dt(&led_blue, 0);
+	// This function runs in a system workqueue thread context
+	while (atomic_get(&g_is_Idle)) {
+		gpio_pin_toggle_dt(&led_red);
+		gpio_pin_toggle_dt(&led_green);
+		gpio_pin_toggle_dt(&led_blue);
+		k_msleep(500); // Blink every 500ms
+	}
+	// Once idle mode is exited, turn off all LEDs
+	gpio_pin_set_dt(&led_red, 0);
+	gpio_pin_set_dt(&led_green, 0);
+	gpio_pin_set_dt(&led_blue, 0);
 }
