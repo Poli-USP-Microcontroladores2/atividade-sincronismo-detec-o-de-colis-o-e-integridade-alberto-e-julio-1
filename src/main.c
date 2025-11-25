@@ -11,7 +11,9 @@
 LOG_MODULE_REGISTER(LOG_INF_APP, LOG_LEVEL_INF);
 
 /* change this to any other UART peripheral if desired */
-#define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
+#define UART_LOG_NODE DT_CHOSEN(zephyr_shell_uart)
+#define UART_DATA_NODE DT_NODELABEL(uart1)
+
 #define CYCLE_DURATION_MS 5000
 #define STACKSIZE 512
 #define MSG_SIZE 32
@@ -42,7 +44,9 @@ K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
 K_THREAD_STACK_DEFINE(transmit_stack_area, STACKSIZE);
 K_THREAD_STACK_DEFINE(receive_stack_area, STACKSIZE);
 
-static const struct device *const uart_dev = DEVICE_DT_GET(UART_DEVICE_NODE);
+/* Ponteiros para os dispositivos UART */
+static const struct device *const uart_log_dev = DEVICE_DT_GET(UART_LOG_NODE);
+static const struct device *const uart_data_dev = DEVICE_DT_GET(UART_DATA_NODE);
 
 /* --- State Machine --- */
 enum state {
@@ -66,10 +70,10 @@ static int rx_buf_pos;
 
 // --- VARIÁVEIS PARA CHECKSUM/INTEGRIDADE ---
 enum rx_state {
-    WAIT_SIZE_MSB,
-    WAIT_SIZE_LSB,
-    WAIT_CHECKSUM,
-    RECEIVING_PAYLOAD
+	WAIT_SIZE_MSB,
+	WAIT_SIZE_LSB,
+	WAIT_CHECKSUM,
+	RECEIVING_PAYLOAD
 };
 
 static enum rx_state g_rx_state = WAIT_SIZE_MSB;
@@ -79,131 +83,143 @@ static uint8_t g_expected_checksum = 0;
 // Função para calcular Checksum (Soma Simples de 8-bit)
 uint8_t calculate_checksum(const char *data, size_t len)
 {
-    uint8_t checksum = 0;
-    for (size_t i = 0; i < len; i++) {
-        checksum += (uint8_t)data[i];
-    }
-    return checksum;
+	uint8_t checksum = 0;
+	for (size_t i = 0; i < len; i++) {
+		checksum += (uint8_t)data[i];
+	}
+	return checksum;
 }
 
+// Envia o pacote completo com cabeçalho (Tamanho e Checksum)
+void send_packet(char *payload)
+{
+	size_t len = strlen(payload);
+	uint8_t checksum;
+
+	// 1. Calcula o checksum sobre o payload
+	checksum = calculate_checksum(payload, len); 
+
+	// 2. Envia o Tamanho (2 bytes: MSB, LSB)
+	uart_poll_out(uart_data_dev, (uint8_t)((len >> 8) & 0xFF)); // MSB
+	uart_poll_out(uart_data_dev, (uint8_t)(len & 0xFF));		// LSB
+
+	// 3. Envia o Checksum (1 byte)
+	uart_poll_out(uart_data_dev, checksum);
+
+	// 4. Envia o Payload (N bytes)
+	for (size_t i = 0; i < len; i++) {
+		uart_poll_out(uart_data_dev, payload[i]);
+	}
+}
+
+// Função de sinalização visual de erro
+void signal_integrity_error_visual(void)
+{
+	// Pisca o LED Azul (Exemplo: Símbolo de "Integridade Falhou")
+	gpio_pin_set_dt(&led_blue, 1);
+	k_msleep(50);
+	gpio_pin_set_dt(&led_blue, 0);
+	k_msleep(50);
+
+	gpio_pin_set_dt(&led_blue, 1);
+	k_msleep(50);
+	gpio_pin_set_dt(&led_blue, 0);
+}
+
+/*
+ * Read characters from UART until line end is detected. Afterwards push the
+ * data to the message queue.
+ */
 void serial_cb(const struct device *dev, void *user_data)
 {
-    uint8_t c;
+	uint8_t c;
 
-    if (!uart_irq_update(uart_dev) || !uart_irq_rx_ready(uart_dev)) {
+	// Usar o dev passado como argumento (que será uart_data_dev)
+    if (!uart_irq_update(dev)) {
         return;
     }
 
-	// Detecção de Ocupação: Sempre que a interrupção dispara, o canal está ocupado.
+    if (!uart_irq_rx_ready(dev)) {
+        return;
+    }
+	// 1. Detecção de Ocupação: Sempre que a interrupção dispara, o canal está ocupado.
     atomic_set(&g_channel_occupied, 1);
-    bool is_receiving = atomic_get(&g_is_receiving);
 
-    /* read until FIFO empty */
-    while (uart_fifo_read(uart_dev, &c, 1) == 1) {
-        if (!is_receiving) {
-            // Not in receive state, just discard
-            continue;
-        }
+	bool is_receiving = atomic_get(&g_is_receiving);
 
-        switch (g_rx_state) {
-            case WAIT_SIZE_MSB:
-                g_expected_size = ((uint16_t)c) << 8;
-                g_rx_state = WAIT_SIZE_LSB;
-                rx_buf_pos = 0; // Prepara o buffer para o payload
-                break;
+	/* read until FIFO empty */
+	while (uart_fifo_read(dev, &c, 1) == 1) {
+		if (!is_receiving) {
+			// Not in receive state, just discard the character to keep FIFO clear
+			continue;
+		}
 
-            case WAIT_SIZE_LSB:
-                g_expected_size |= (uint16_t)c;
+		switch (g_rx_state) {
+			case WAIT_SIZE_MSB:
+				g_expected_size = ((uint16_t)c) << 8;
+				g_rx_state = WAIT_SIZE_LSB;
+				rx_buf_pos = 0; // Prepara o buffer para o payload
+				break;
 
-				if (g_expected_size >= sizeof(rx_buf)) {
-                    LOG_ERR("Tamanho de pacote declarado (%u) é muito grande!", g_expected_size);
-                    g_rx_state = WAIT_SIZE_MSB;
-                    break;
-                }
-				
-                g_rx_state = WAIT_CHECKSUM;
-                break;
+			case WAIT_SIZE_LSB:
+				g_expected_size |= (uint16_t)c;
 
-            case WAIT_CHECKSUM:
-                g_expected_checksum = c;
-                g_rx_state = RECEIVING_PAYLOAD;
-                break;
+				if (g_expected_size == 0 || g_expected_size >= sizeof(rx_buf)) {
+					LOG_ERR("Tamanho de pacote inválido (%u)!", g_expected_size);
+					g_rx_state = WAIT_SIZE_MSB; // Recomeça
+					break;
+				}
 
-            case RECEIVING_PAYLOAD:
-                if (rx_buf_pos < g_expected_size && rx_buf_pos < (sizeof(rx_buf) - 1)) {
+				g_rx_state = WAIT_CHECKSUM;
+				break;
+
+			case WAIT_CHECKSUM:
+				g_expected_checksum = c;
+				g_rx_state = RECEIVING_PAYLOAD;
+				break;
+
+			case RECEIVING_PAYLOAD:
+				if (rx_buf_pos < g_expected_size) {
 					rx_buf[rx_buf_pos++] = c;
 				}
-                
-                // Verifica se o payload completo foi recebido
-                if (rx_buf_pos == g_expected_size) {
-                    rx_buf[rx_buf_pos] = '\0'; // Termina a string
+ 
+				// Verifica se o payload completo foi recebido
+				if (rx_buf_pos == g_expected_size) {
+					rx_buf[rx_buf_pos] = '\0'; // Termina a string
 
-                    // CÁLCULO E VERIFICAÇÃO DO CHECKSUM
-                    uint8_t calculated_checksum = calculate_checksum(rx_buf, rx_buf_pos);
+					// CÁLCULO E VERIFICAÇÃO DO CHECKSUM
+					uint8_t calculated_checksum = calculate_checksum(rx_buf, g_expected_size);
 
-                    if (calculated_checksum == g_expected_checksum) {
-                        // Checksum OK: Mensagem íntegra.
-                        k_msgq_put(&uart_msgq, rx_buf, K_NO_WAIT);
-                        LOG_INF("Msg OK (T:%u, CS:%u)", g_expected_size, g_expected_checksum);
-                    } else {
-                        // Checksum FAIL: Mensagem corrompida/incompleta.
-                        LOG_WRN("CS FAIL! Exp: %u, Calc: %u", g_expected_checksum, calculated_checksum);
-                        
-                        // Envia comando de erro para a thread de recepção
-                        k_msgq_put(&uart_msgq, "CS_ERR", K_NO_WAIT);
-                    }
+					if (calculated_checksum == g_expected_checksum) {
+						// Checksum OK: Mensagem íntegra.
+						k_msgq_put(&uart_msgq, rx_buf, K_NO_WAIT);
+					} else {
+						// Checksum FAIL: Mensagem corrompida.
+						LOG_WRN("CS FAIL! Exp: %u, Calc: %u. Abortando pacote.", g_expected_checksum, calculated_checksum);
+						// Sinaliza erro na thread de recepção
+						k_msgq_put(&uart_msgq, "CS_ERR", K_NO_WAIT);
+					}
 
-                    // Reinicia a máquina de estados para o próximo pacote
-                    g_rx_state = WAIT_SIZE_MSB;
-                }
-                break;
+					// Reinicia a máquina de estados para o próximo pacote
+					g_rx_state = WAIT_SIZE_MSB;
+				}
+			break;
 
-            default:
-                // Caso de erro, reinicia
-                g_rx_state = WAIT_SIZE_MSB;
-                break;
-        }
-    }
+			default:
+				// Caso de erro, reinicia
+				g_rx_state = WAIT_SIZE_MSB;
+				break;
+		}
+	}
 }
 
-//Função de sinalização visual de erro
-void signal_integrity_error_visual(void)
+void print_uart(char *buf)
 {
-    // Pisca 1
-    gpio_pin_set_dt(&led_red, 1);
-    k_msleep(50);
-    gpio_pin_set_dt(&led_red, 0);
-    k_msleep(50);
+    int msg_len = strlen(buf);
 
-    // Pisca 2
-    gpio_pin_set_dt(&led_red, 1);
-    k_msleep(50);
-    gpio_pin_set_dt(&led_red, 0);
-}
-
-// Envia a mensagem com cabeçalho (Tamanho e Checksum)
-void send_packet(char *payload)
-{
-    size_t len = strlen(payload);
-    uint8_t checksum;
-    
-    // Calcula o checksum sobre toda a string (incluindo \r\n)
-    checksum = calculate_checksum(payload, len); 
-
-    // O header (Tamanho e Checksum) será enviado como bytes brutos
-    // Tamanho (2 bytes: MSB, LSB)
-    uart_poll_out(uart_dev, (uint8_t)((len >> 8) & 0xFF)); // MSB
-    uart_poll_out(uart_dev, (uint8_t)(len & 0xFF));        // LSB
-
-    // Checksum (1 byte)
-    uart_poll_out(uart_dev, checksum);
-
-    // Payload (N bytes)
-    for (size_t i = 0; i < len; i++) {
-        uart_poll_out(uart_dev, payload[i]);
+    for (int i = 0; i < msg_len; i++) {
+        uart_poll_out(uart_log_dev, buf[i]); // Usa o UART0
     }
-    
-    // (O payload já deve conter \r\n no final, se for o caso)
 }
 
 void transmit_thread(void *p1, void *p2, void *p3)
@@ -215,16 +231,16 @@ void transmit_thread(void *p1, void *p2, void *p3)
         sys_rand_get(&random_char_selector, sizeof(random_char_selector));
         switch (random_char_selector % 3) {
         case 0:
-            msg_to_send = "green\r\n";
+            msg_to_send = "Message 1\r\n";
             break;
         case 1:
-            msg_to_send = "red\r\n";
+            msg_to_send = "Option 2\r\n";
             break;
         case 2:
-            msg_to_send = "blue\r\n";
+            msg_to_send = "Third Option\r\n";
             break;
         default:
-            msg_to_send = "green\r\n";
+            msg_to_send = "Default\r\n";
         }
         
         // 1. Limpa o flag de ocupação para 'escutar' o canal
@@ -236,7 +252,7 @@ void transmit_thread(void *p1, void *p2, void *p3)
         // 3. Checa o status do canal
         if (atomic_get(&g_channel_occupied) == 0) {
             // Canal livre: Transmite.
-            send_packet(msg_to_send);
+			send_packet(msg_to_send);
         } else {
             // Colisão detectada: Aborta a TX e sinaliza (Amarelo = Vermelho + Verde).
             LOG_WRN("Colisão detectada! Canal ocupado. Abortando TX.");
@@ -258,25 +274,24 @@ void transmit_thread(void *p1, void *p2, void *p3)
 
 void receive_thread(void *p1, void *p2, void *p3)
 {
-	char rx_msg[MSG_SIZE]; // Usea'rx_msg' para a mensagem tirada da fila
+	char tx_buf[MSG_SIZE]; // Use 'tx_buf' para a mensagem tirada da fila
 	while (1) {
 		// Wait forever for a message
-		if (k_msgq_get(&uart_msgq, rx_msg, K_FOREVER) == 0) {
+		if (k_msgq_get(&uart_msgq, tx_buf, K_FOREVER) == 0) {
 			// Tratamento de erro de Checksum
-            if (strcmp(rx_msg, "CS_ERR") == 0) {
-                signal_integrity_error_visual(); 
-                continue; // Volta ao início para esperar a próxima mensagem
-            }
-
-			if (strcmp(rx_msg, "red") == 0) { // Case-sensitive match
+			if (strcmp(tx_buf, "CS_ERR") == 0) {
+				signal_integrity_error_visual(); 
+				continue; // Volta ao início para esperar a próxima mensagem
+			}
+			if (strcmp(tx_buf, "red") == 0) { // Case-sensitive match
 				gpio_pin_set_dt(&led_red, 1);
 				k_msleep(100);
 				gpio_pin_set_dt(&led_red, 0);
-			} else if (strcmp(rx_msg, "green") == 0) { // Case-sensitive match
+			} else if (strcmp(tx_buf, "green") == 0) { // Case-sensitive match
 				gpio_pin_set_dt(&led_green, 1);
 				k_msleep(100);
 				gpio_pin_set_dt(&led_green, 0);
-			} else if (strcmp(rx_msg, "blue") == 0) { // Case-sensitive match
+			} else if (strcmp(tx_buf, "blue") == 0) { // Case-sensitive match
 				gpio_pin_set_dt(&led_blue, 1);
 				k_msleep(100);
 				gpio_pin_set_dt(&led_blue, 0);
@@ -297,7 +312,7 @@ void cycle_timer_handler(struct k_timer *timer_id)
 		k_msgq_purge(&uart_msgq); // Purge queue to remove stale data
 		rx_buf_pos = 0; // Reset buffer position
 		k_thread_resume(receive_tid);
-		LOG_INF("--- Receive Phase ---");
+		print_uart("--- Receive Phase ---\r\n");
 		gpio_pin_set_dt(&led_blue, 1); // Blink Blue LED to indicate receive cycle
 		k_msleep(100);
 		gpio_pin_set_dt(&led_blue, 0);
@@ -308,7 +323,7 @@ void cycle_timer_handler(struct k_timer *timer_id)
 		atomic_set(&g_current_state, STATE_TRANSMIT);
 		atomic_set(&g_is_receiving, 0); // Prevent ISR from processing data
 		k_thread_resume(transmit_tid);
-		LOG_INF("--- Transmission Phase ---");
+		print_uart("--- Transmission Phase ---\r\n");
 		gpio_pin_set_dt(&led_red, 1); // Blink Red LED to indicate transmit cycle
 		k_msleep(100);
 		gpio_pin_set_dt(&led_red, 0);
@@ -346,13 +361,17 @@ int main(void)
     gpio_pin_configure_dt(&led_red, GPIO_OUTPUT_INACTIVE);
 	gpio_pin_configure_dt(&led_blue, GPIO_OUTPUT_INACTIVE);
 
-	if (!device_is_ready(uart_dev)) {
-		printk("UART device not found!");
-		return 0;
-	}
+	if (!device_is_ready(uart_log_dev)) {
+        printk("UART Log (UART0) device not found!");
+        return 0;
+    }
+    if (!device_is_ready(uart_data_dev)) {
+        printk("UART Data (UART1) device not found!");
+        return 0;
+    }
 
 	/* configure interrupt and callback to receive data */
-	int ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
+	int ret = uart_irq_callback_user_data_set(uart_data_dev, serial_cb, NULL);
 
 	if (ret < 0) {
 		if (ret == -ENOTSUP) {
@@ -365,7 +384,7 @@ int main(void)
 		return 0;
 	}
 
-	uart_irq_rx_enable(uart_dev); // Enable RX interrupts permanently
+	uart_irq_rx_enable(uart_data_dev); // Enable RX interrupts permanently
 
 	// Create and start threads
 	transmit_tid = k_thread_create(&transmit_thread_data, transmit_stack_area,
@@ -408,7 +427,7 @@ int main(void)
             atomic_set(&g_is_receiving, 0); 
             k_thread_resume(transmit_tid); // Garante que a thread TX está rodando
             
-            LOG_INF("--- FORCED Synchronization Phase (TX 5s) ---");
+            print_uart("--- FORCED Synchronization Phase (TX 5s) ---\r\n");
             
             // Sinalização visual
             gpio_pin_set_dt(&led_red, 1); 
