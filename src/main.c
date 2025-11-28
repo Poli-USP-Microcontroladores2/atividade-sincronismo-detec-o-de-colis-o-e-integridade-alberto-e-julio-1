@@ -409,7 +409,7 @@ int main(void)
 		// A main thread espera pelo sinal do botão (sync_sem)
         if (k_sem_take(&sync_sem, K_FOREVER) == 0) {
             
-            LOG_INF("Botão pressionado. Forçando sincronização para TX (5s).");
+            LOG_INF("Botão pressionado. Forçando sincronização para RX (5s).");
             
             // 1. Interrompe qualquer ciclo pendente
             k_timer_stop(&cycle_timer);
@@ -423,16 +423,16 @@ int main(void)
                  k_thread_suspend(transmit_tid);
             }
             
-            atomic_set(&g_current_state, STATE_TRANSMIT);
-            atomic_set(&g_is_receiving, 0); 
-            k_thread_resume(transmit_tid); // Garante que a thread TX está rodando
+            atomic_set(&g_current_state, STATE_RECEIVE);
+            atomic_set(&g_is_receiving, 1); 
+            k_thread_resume(receive_tid); // Garante que a thread TX está rodando
             
-            print_uart("--- FORCED Synchronization Phase (TX 5s) ---\r\n");
+            print_uart("--- FORCED Synchronization Phase (RX 5s) ---\r\n");
             
             // Sinalização visual
-            gpio_pin_set_dt(&led_red, 1); 
+            gpio_pin_set_dt(&led_blue, 1); 
             k_msleep(100);
-            gpio_pin_set_dt(&led_red, 0);
+            gpio_pin_set_dt(&led_blue, 0);
 
             // 3. INICIA/REINICIA O CICLO: O próximo timeout será em 5s (fim do TX forçado),
             // e os ciclos subsequentes serão automáticos (5s/5s).
