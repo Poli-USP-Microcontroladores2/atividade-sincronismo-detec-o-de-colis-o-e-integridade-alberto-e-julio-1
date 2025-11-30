@@ -28,7 +28,7 @@ void main(void)
 
     /* Envia mensagens periódicas pela UART1 e pisca o LED */
     while (1) {
-        const char msg[] = "UART1!\n";
+        const char msg[] = "UART1!\r";
 
         /* Turn the LED on to indicate UART transmission */
         gpio_pin_set_dt(&blue_led, 1);
