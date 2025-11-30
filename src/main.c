@@ -1,17 +1,11 @@
-/*
- * Copyright (c) 2022 Libre Solar Technologies GmbH
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 
 #include <string.h>
 
-/* change this to any other UART peripheral if desired */
-#define UART_DEVICE_NODE DT_CHOSEN(zephyr_shell_uart)
+/* Explicitly use uart0, which is connected to the debug USB port */
+#define UART_DEVICE_NODE DT_NODELABEL(uart0)
 
 #define MSG_SIZE 32
 
@@ -101,7 +95,7 @@ int main(void)
 	while (k_msgq_get(&uart_msgq, &tx_buf, K_FOREVER) == 0) {
 		print_uart("ECHO:");
 		print_uart(tx_buf);
-		print_uart("\r\n");
+		print_uart("\n");
 	}
 
 	return 0;
