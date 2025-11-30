@@ -5,8 +5,9 @@
 
 #include <string.h>
  
-/* Use led0 for visual debug feedback */
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+/* Define LEDs for visual feedback */
+static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios); /* For receiving */
+static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios); /* For sending */
 
 #define MSG_SIZE 32
 
@@ -18,12 +19,18 @@ static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1))
 K_MSGQ_DEFINE(uart0_rx_msgq, MSG_SIZE, 10, 4); // For data from console (UART0)
 K_MSGQ_DEFINE(uart1_rx_msgq, MSG_SIZE, 10, 4); // For data from other MCU (UART1)
 
-static void led_off_work_handler(struct k_work *work)
+static void led_green_off_work_handler(struct k_work *work)
 {
-	gpio_pin_set_dt(&led, 0); /* Turn LED OFF */
+	gpio_pin_set_dt(&led_green, 0); /* Turn Green LED OFF */
 }
 
-K_WORK_DELAYABLE_DEFINE(led_off_work, led_off_work_handler);
+static void led_blue_off_work_handler(struct k_work *work)
+{
+	gpio_pin_set_dt(&led_blue, 0); /* Turn Blue LED OFF */
+}
+
+K_WORK_DELAYABLE_DEFINE(led_green_off_work, led_green_off_work_handler);
+K_WORK_DELAYABLE_DEFINE(led_blue_off_work, led_blue_off_work_handler);
 
 /* RX buffers and positions for each UART */
 static char rx0_buf[MSG_SIZE];
@@ -35,8 +42,11 @@ static int rx1_buf_pos;
 void console_to_uart1_thread(void);
 void uart1_to_console_thread(void);
 
-K_THREAD_DEFINE(console_tid, 1024, console_to_uart1_thread, NULL, NULL, NULL, 7, 0, 0);
-K_THREAD_DEFINE(uart1_tid, 1024, uart1_to_console_thread, NULL, NULL, NULL, 7, 0, 0);
+/* Use preemptive priorities (negative values). Lower number = higher priority. */
+/* Thread for printing received messages gets higher priority for responsiveness. */
+K_THREAD_DEFINE(uart1_tid, 1024, uart1_to_console_thread, NULL, NULL, NULL, 5, 0, 0);
+/* Thread for sending console input gets lower priority. */
+K_THREAD_DEFINE(console_tid, 1024, console_to_uart1_thread, NULL, NULL, NULL, 6, 0, 0);
 
 /*
  * UART0 ISR: handles characters from the console
@@ -54,7 +64,9 @@ void serial_cb_uart0(const struct device *dev, void *user_data)
 			k_msgq_put(&uart0_rx_msgq, &rx0_buf, K_NO_WAIT);
 			rx0_buf_pos = 0;
 		} else if (rx0_buf_pos < (sizeof(rx0_buf) - 1)) {
-			rx0_buf[rx0_buf_pos++] = c;
+			if (c != '\r' && c != '\n') {
+				rx0_buf[rx0_buf_pos++] = c;
+			}
 		}
 	}
 }
@@ -75,12 +87,14 @@ void serial_cb_uart1(const struct device *dev, void *user_data)
 			k_msgq_put(&uart1_rx_msgq, &rx1_buf, K_NO_WAIT);
 
 			/* Blink LED to show a message was received */
-			gpio_pin_set_dt(&led, 1); /* Turn LED ON */
-			k_work_reschedule(&led_off_work, K_MSEC(50));
+			gpio_pin_set_dt(&led_green, 1); /* Turn Green LED ON */
+			k_work_reschedule(&led_green_off_work, K_MSEC(50));
 
 			rx1_buf_pos = 0;
 		} else if (rx1_buf_pos < (sizeof(rx1_buf) - 1)) {
-			rx1_buf[rx1_buf_pos++] = c;
+			if (c != '\r' && c != '\n') {
+				rx1_buf[rx1_buf_pos++] = c;
+			}
 		}
 	}
 }
@@ -92,6 +106,10 @@ void console_to_uart1_thread(void)
 
 	while (k_msgq_get(&uart0_rx_msgq, &tx_buf, K_FOREVER) == 0) {
 		printk("Sending: %s\n", tx_buf);
+		/* Blink Blue LED to show a message is being sent */
+		gpio_pin_set_dt(&led_blue, 1);
+		k_work_reschedule(&led_blue_off_work, K_MSEC(50));
+
 		for (int i = 0; i < strlen(tx_buf); i++) {
 			uart_poll_out(uart1_dev, tx_buf[i]);
 		}
@@ -112,11 +130,16 @@ void uart1_to_console_thread(void)
 
 int main(void)
 {
-	if (!gpio_is_ready_dt(&led)) {
-		printk("Debug LED not ready!");
+	if (!gpio_is_ready_dt(&led_green)) {
+		printk("Green Debug LED not ready!");
 		return 0;
 	}
-	gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE); /* LED is initially OFF */
+	if (!gpio_is_ready_dt(&led_blue)) {
+		printk("Blue Debug LED not ready!");
+		return 0;
+	}
+	gpio_pin_configure_dt(&led_green, GPIO_OUTPUT_INACTIVE); /* Green LED is initially OFF */
+	gpio_pin_configure_dt(&led_blue, GPIO_OUTPUT_INACTIVE); /* Blue LED is initially OFF */
 
 	/* Check and configure UART0 */
 	if (!device_is_ready(uart0_dev)) {
@@ -142,7 +165,7 @@ int main(void)
 		printk("UART1 device not found!");
 		/* Blink LED rapidly to indicate a fatal error */
 		while (1) {
-			gpio_pin_toggle_dt(&led);
+			gpio_pin_toggle_dt(&led_green);
 			k_msleep(100);
 		}
 	}
