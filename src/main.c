@@ -17,6 +17,13 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 /* queue to store up to 10 messages (aligned to 4-byte boundary) */
 K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
 
+static void led_off_work_handler(struct k_work *work)
+{
+	gpio_pin_set_dt(&led, 0); /* Turn LED OFF */
+}
+
+K_WORK_DELAYABLE_DEFINE(led_off_work, led_off_work_handler); //Delay to turn off the led without blocking the interrupt
+
 static const struct device *const uart_tx_dev = DEVICE_DT_GET(UART_TX_NODE);
 static const struct device *const uart_rx_dev = DEVICE_DT_GET(UART_RX_NODE);
 
@@ -31,9 +38,6 @@ static int rx_buf_pos;
 void serial_cb(const struct device *dev, void *user_data)
 {
 	uint8_t c;
-
-	/* Toggle the LED to confirm the interrupt is firing at all */
-	gpio_pin_toggle_dt(&led);
 
 	if (!uart_irq_update(dev)) {
 		return;
@@ -51,6 +55,10 @@ void serial_cb(const struct device *dev, void *user_data)
 
 			/* if queue is full, message is silently dropped */
 			k_msgq_put(&uart_msgq, &rx_buf, K_NO_WAIT);
+
+			/* Blink the LED without blocking the interrupt */
+			gpio_pin_set_dt(&led, 1); /* Turn LED ON */
+			k_work_reschedule(&led_off_work, K_MSEC(50));
 
 			/* reset the buffer (it was copied to the msgq) */
 			rx_buf_pos = 0;
@@ -110,7 +118,7 @@ int main(void)
 
 	/* indefinitely wait for input from the user */
 	while (k_msgq_get(&uart_msgq, &tx_buf, K_FOREVER) == 0) {
-		print_uart("ECHO:");
+		print_uart("Received:");
 		print_uart(tx_buf);
 		print_uart("\n");
 	}
