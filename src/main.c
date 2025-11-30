@@ -1,18 +1,24 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/drivers/gpio.h>
 
 #include <string.h>
+ 
+/* Define UART ports */
+#define UART_TX_NODE DT_NODELABEL(uart0) /* UART for transmitting the echo (to PC) */
+#define UART_RX_NODE DT_NODELABEL(uart1) /* UART for receiving from the other MCU */
 
-/* Explicitly use uart0, which is connected to the debug USB port */
-#define UART_DEVICE_NODE DT_NODELABEL(uart0)
+/* Use led0 for visual debug feedback */
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 #define MSG_SIZE 32
 
 /* queue to store up to 10 messages (aligned to 4-byte boundary) */
 K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
 
-static const struct device *const uart_dev = DEVICE_DT_GET(UART_DEVICE_NODE);
+static const struct device *const uart_tx_dev = DEVICE_DT_GET(UART_TX_NODE);
+static const struct device *const uart_rx_dev = DEVICE_DT_GET(UART_RX_NODE);
 
 /* receive buffer used in UART ISR callback */
 static char rx_buf[MSG_SIZE];
@@ -26,16 +32,19 @@ void serial_cb(const struct device *dev, void *user_data)
 {
 	uint8_t c;
 
-	if (!uart_irq_update(uart_dev)) {
+	/* Toggle the LED to confirm the interrupt is firing at all */
+	gpio_pin_toggle_dt(&led);
+
+	if (!uart_irq_update(dev)) {
 		return;
 	}
 
-	if (!uart_irq_rx_ready(uart_dev)) {
+	if (!uart_irq_rx_ready(dev)) {
 		return;
 	}
 
 	/* read until FIFO empty */
-	while (uart_fifo_read(uart_dev, &c, 1) == 1) {
+	while (uart_fifo_read(dev, &c, 1) == 1) {
 		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
 			/* terminate string */
 			rx_buf[rx_buf_pos] = '\0';
@@ -60,7 +69,7 @@ void print_uart(char *buf)
 	int msg_len = strlen(buf);
 
 	for (int i = 0; i < msg_len; i++) {
-		uart_poll_out(uart_dev, buf[i]);
+		uart_poll_out(uart_tx_dev, buf[i]);
 	}
 }
 
@@ -68,28 +77,46 @@ int main(void)
 {
 	char tx_buf[MSG_SIZE];
 
-	if (!device_is_ready(uart_dev)) {
-		printk("UART device not found!");
+	if (!device_is_ready(uart_tx_dev)) {
+		printk("UART TX (UART0) device not found!");
 		return 0;
 	}
 
-	/* configure interrupt and callback to receive data */
-	int ret = uart_irq_callback_user_data_set(uart_dev, serial_cb, NULL);
+	/* --- Visual Debug Check for UART1 --- */
+	if (!gpio_is_ready_dt(&led)) {
+		printk("Debug LED not ready!");
+		return 0;
+	}
+	gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE); /* LED is initially OFF */
 
-	if (ret < 0) {
-		if (ret == -ENOTSUP) {
-			printk("Interrupt-driven UART API support not enabled\n");
-		} else if (ret == -ENOSYS) {
-			printk("UART device does not support interrupt-driven API\n");
-		} else {
-			printk("Error setting UART callback: %d\n", ret);
+	if (!device_is_ready(uart_rx_dev)) {
+		printk("UART RX (UART1) device not found!");
+		/* Blink LED rapidly to indicate a fatal error */
+		while (1) {
+			gpio_pin_toggle_dt(&led);
+			k_msleep(100);
 		}
-		return 0;
+		return 0; /* This line will not be reached */
 	}
-	uart_irq_rx_enable(uart_dev);
 
-	print_uart("Hello! I'm your echo bot.\r\n");
-	print_uart("Tell me something and press enter:\r\n");
+	/* Explicitly configure the UART device before setting up interrupts */
+	const struct uart_config uart_cfg = {
+		.baudrate = 230400, /* This is the actual target baudrate */
+		.parity = UART_CFG_PARITY_NONE,
+		.stop_bits = UART_CFG_STOP_BITS_1,
+		.data_bits = UART_CFG_DATA_BITS_8,
+		.flow_ctrl = UART_CFG_FLOW_CTRL_NONE
+	};
+	uart_configure(uart_rx_dev, &uart_cfg);
+
+	/* Manually connect our callback to IRQ 13 (UART1) and enable it.
+	 * This bypasses the driver's faulty IRQ_CONNECT mechanism.
+	 */
+	IRQ_CONNECT(DT_IRQN(UART_RX_NODE), DT_IRQ(UART_RX_NODE, priority), serial_cb, DEVICE_DT_GET(UART_RX_NODE), 0);
+	irq_enable(DT_IRQN(UART_RX_NODE));
+	uart_irq_rx_enable(uart_rx_dev);
+
+	print_uart("UART bridge started. Listening on UART1, echoing to UART0.\r\n");
 
 	/* indefinitely wait for input from the user */
 	while (k_msgq_get(&uart_msgq, &tx_buf, K_FOREVER) == 0) {
