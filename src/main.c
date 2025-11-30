@@ -99,16 +99,6 @@ int main(void)
 		return 0; /* This line will not be reached */
 	}
 
-	/* Explicitly configure the UART device before setting up interrupts */
-	const struct uart_config uart_cfg = {
-		.baudrate = 230400, /* This is the actual target baudrate */
-		.parity = UART_CFG_PARITY_NONE,
-		.stop_bits = UART_CFG_STOP_BITS_1,
-		.data_bits = UART_CFG_DATA_BITS_8,
-		.flow_ctrl = UART_CFG_FLOW_CTRL_NONE
-	};
-	uart_configure(uart_rx_dev, &uart_cfg);
-
 	/* Manually connect our callback to IRQ 13 (UART1) and enable it.
 	 * This bypasses the driver's faulty IRQ_CONNECT mechanism.
 	 */
