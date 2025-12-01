@@ -37,6 +37,7 @@ Júlio Cesar Braga Parro - NUSP: 16879560
 
 
 #### Diagrama D2:
+<img width="500" height="450" alt="d2" src="https://github.com/user-attachments/assets/89d1e4d0-4cb6-4156-a7d2-4b2e224b80f2" />
 
 
 #### Testes:
