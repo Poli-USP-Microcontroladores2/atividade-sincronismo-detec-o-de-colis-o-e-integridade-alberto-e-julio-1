@@ -53,29 +53,39 @@ Atividade: Sincronismo, Detecção de Colisão e Integridade
 
 ## 1.3. Detecção de Colisão
 
-Reflita inicialmente se vocês consideram o sincronismo feito por botão algo perfeito, ou se ele pode falhar.
-_Será que é necessário fazer um sincronismo periódico?_
+### Enunciado
+A proposta é elaborar uma detecção de colisão: logo antes de transmitir a mensagem completa, ou após transmitir cada caractere, podemos ouvir o canal (modo de recepção) para verificar se não há alguém já transmitindo, e não iniciar a transmissão caso o canal de comunicação esteja ocupado.
 
-Nos casos em que há problemas de sincronismo, podemos ter o cenário de colisão: quando as duas placas tentam transmitir ao mesmo tempo.
-Para lidar com este problema, a proposta é elaborar uma detecção de colisão: logo antes de transmitir a mensagem completa, ou após transmitir cada caractere, podemos ouvir o canal (modo de recepção) para verificar se não há alguém já transmitindo, e não iniciar a transmissão caso o canal de comunicação esteja ocupado.
+### Abordagem adotada
+- O sincronismo entre os microcontroladores feito pelo botão, a longo prazo, pode apresentar falhas, uma vez que o envio e processamento do sinal pode ser levemente diferente para ambos. Portanto, elaborou-se um mecanismo de detecção de colisão.
+- A abordagem adotada foi de escutar o canal antes de enviar a mensagem completa, ou seja, deixar o microcontrolador que vai enviar a mensagem em RX por um curto período de tempo antes de entrar em TX.
 
-_Elabore um diagrama de transição de estados (versão 2) para modelar como as duas placas irão interagir com o sincronismo por botão e a detecção de colisão, considerando os diversos estados possíveis e os eventos que determinam as transições de estados (vocês podem utilizar o D2 diagrams visto em atividade anterior: https://play.d2lang.com/)_.
+### Diagrama D2
+<img width="500" height="450" alt="image" src="https://github.com/user-attachments/assets/394b3d5f-3d57-4f0a-af79-5ff90710b0ab" />
 
-_Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de detecção de colisão, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: é possível mapear os estados mais relevantes a comportamentos do led da placa para observar o seu funcionamento?)_.
+
+### Testes:
+  #### Teste 3-1: Sistema de detecção de colisão
+  - Pré-condição: Código compilado e ambos os microcontroladores tentando enviar mensagem
+  - Etapas de teste: Verificar o estado dos LED's e o serial monitor durante esse caso
+  - Pós-condição esperada: O microcontrolador que começou a transmissão mais tarde acende o LED amarelo como alerta, emite um LOG_WRN e aborta a mensagem
 
 ---
 
 ## 1.4. Verificação de Integridade
 
-Reflita inicialmente o que ocorre com as mensagens transmitidas e recebidas em caso de colisão.
+### Enunciado
+A proposta é elaborar uma verificação de integridade: no início da mensagem, podemos enviar um hash da mensagem ou pelo menos o tamanho total da mensagem em caracteres, para que o receptor possa verificar se recebeu todos os caracteres de forma íntegra.
 
-Nos casos em que há problemas de colisão, as mensagens podem não ser recebidas de forma completa.
-Para lidar com este problema, a proposta é elaborar uma verificação de integridade: no início da mensagem, podemos enviar um hash da mensagem ou pelo menos o tamanho total da mansagem em caracteres, para que o receptor possa verificar se recebeu todos os caracteres de forma íntegra.
-Questão para reflexão: _a verificação de integridade de conteúdo é suportada pela verificação de tamanho da mensagem recebida em caracteres?_
+### Abordagem adotada
+- Criou-se um pacote de dados que envia, além da mensagem, dois bytes para o tamanho da mensagem, divididos em byte mais significativo e menos significativo, e um byte para o checksum. Dessa forma, checa-se se o tamanho da mensagem recebida é o mesmo do esperado e se a mensagem em si se mantém íntegra, por meio da checagem do checksum.
 
-_Elabore um diagrama de transição de estados (versão 3) para modelar como as duas placas irão interagir com o sincronismo por botão, a detecção de colisão e a verificação de integridade, considerando os diversos estados possíveis e os eventos que determinam as transições de estados (vocês podem utilizar o D2 diagrams visto em atividade anterior: https://play.d2lang.com/)_.
+### Testes
+  #### Teste 4-1: Verificação da mensagem
+  - Pré-condição: Código compilado e microcontroladores sincronizados
+  - Etapas de teste: Verificar o estado do LED do microcontrolador que recebeu a mensagem
+  - Pós-condição esperada: Se houver conflito de integridade, o LED piscará 2 vezes rapidamente na cor vermelha
 
-_Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de verificação de integridade, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: podemos mapear a correta verificação de integridade a comportamentos da placa?)_.
 
 # Etapa 2: Desenvolvimento Orientado a Testes
 
@@ -163,13 +173,74 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
 
     
  ---
+
+ ## Problemas nas atividades 3 e 4
+ - Durante a etapa inicial de desenvolvimento, a configuração da interface UART1 apresentou problemas nos canais de transmissão (TX) e recepção (RX). Embora o código de referência, que foi posteriormente disponibilizado pelo professor Gustavo, tenha sanado as falhas de transmissão, a recepção de dados permaneceu impactada. Posteriormente, a nossa equipe desenvolveu, de forma independente, uma solução para esse problema de configuração, viabilizando a utilização plena do canal (registrada na branch “Teste-UART1”).
+	- Devido ao tempo despendido nesta correção, o escopo do projeto foi ajustado para priorizar as funcionalidades centrais (atividades 1 e 2), conforme orientação do professor Gustavo durante a aula do dia 28/11. As atividades “extras” (3 e 4) foram mantidas com implementação original parcial devido ao cronograma remanescente, demonstrando a aderência teórica à proposta, porém com cobertura de testes e/ou funcionalidade reduzida.
  
 ## 2.3. Detecção de Colisão
 
-Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+### Teste 3-1: Sistema de detecçãao de colisão
+- **Descrição***:
+	- Testou-se o funcionamento da detecção da colisão apenas com uma placa, enviando mensagens diretamente pelo serial monitor
+	- Quando o canal estiver ocupado, aparece uma LOG_WRN indicando o erro e a mensagem que seria enviada é descartada
+
+- **Evidências**:
+	- **"Prova 3-1 - Console"**:
+ <img width="600" height="400" alt="Prova - Detecção de Colisão" src="https://github.com/user-attachments/assets/9b48830e-e54e-4af8-83c9-6da41a9c36a0" />
+
 
 ---
 
 ## 2.4. Verificação de Integridade
 
-Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+### Teste 4-1: Verificação da mensagem
+- **Descrição**:
+   - Devido ao conflito e problemas entre as UART’S, não foi possível realizar o teste do pacote de dados e verificação de integridade. No entanto, segue os trechos do código responsáveis pela implementação e uma breve explicação sobre o seu funcionamento.
+   - Para permitir a verificação, a mensagem enviada (payload) é encapsulada em um pacote que inclui um cabeçalho contendo dados essenciais, além do próprio payload: Tamanho (MSB) + Tamanho (LSB) + Checksum + Payload (n bytes)
+   - O Checksum é calculado somando-se todos os bytes do payload e armazenando apenas o byte menos significativo (os 8 bits mais à direita) do resultado. Isso garante que o valor do checksum caiba em 1 byte (uint8_t), conforme o trecho abaixo:
+
+``` 
+// Função para calcular Checksum (Soma Simples de 8-bit)
+uint8_t calculate_checksum(const char *data, size_t len)
+{
+    uint8_t checksum = 0;
+    for (size_t i = 0; i < len; i++) {
+        checksum += (uint8_t)data[i]; // Soma cumulativa do valor dos bytes
+    }
+    return checksum; // Retorna apenas o LSB (8-bit) da soma
+}
+```
+
+   - Antes de enviar a mensagem, a função de transmissão calcula o checksum sobre o payload e então envia o cabeçalho (Tamanho em 2 bytes e o Checksum de 1 byte), seguido pelo payload.
+	
+```
+void send_packet(char *payload)
+{
+    size_t len = strlen(payload);
+    uint8_t checksum;
+    
+    // Calcula o checksum sobre toda a string
+    checksum = calculate_checksum(payload, len); 
+
+    // O header (Tamanho e Checksum) será enviado como bytes brutos
+    // Tamanho (2 bytes: MSB, LSB)
+    uart_poll_out(uart_dev, (uint8_t)((len >> 8) & 0xFF)); // MSB
+    uart_poll_out(uart_dev, (uint8_t)(len & 0xFF));        // LSB
+
+    // Checksum (1 byte)
+    uart_poll_out(uart_dev, checksum);
+
+    // Payload (N bytes)
+    for (size_t i = 0; i < len; i++) {
+        uart_poll_out(uart_dev, payload[i]);
+    }
+}
+```
+
+   - Na recepção (dentro da serial_cb, que é executada na Interrupção da UART), o código utiliza uma Máquina de Estados (g_rx_state) para processar sequencialmente os bytes recebidos:
+	  - WAIT_SIZE_MSB / WAIT_SIZE_LSB: Lê os 2 bytes e monta o tamanho (g_expected_size) do payload esperado.
+	  - WAIT_CHECKSUM: Lê o valor do checksum esperado (g_expected_checksum).
+	  - RECEIVING_PAYLOAD: Recebe os bytes do payload no buffer rx_buf.
+   - Ao receber o número total de bytes do payload (rx_buf_pos == g_expected_size), a rotina de interrupção calcula o checksum localmente e o compara com o valor recebido no cabeçalho.
+   - Se o checksum falhar, uma mensagem especial "CS_ERR" é enviada para a fila de mensagens (uart_msgq). A thread de recepção (receive_thread) detecta essa mensagem de erro e invoca a função signal_integrity_error_visual() para sinalizar o problema visualmente (piscando o LED vermelho), descartando o payload corrompido. 
