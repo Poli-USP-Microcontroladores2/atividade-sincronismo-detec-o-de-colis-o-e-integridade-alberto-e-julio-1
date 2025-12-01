@@ -1,0 +1,6 @@
+TR -> Verificação_buffer1: Verifica integridade
+TR <- Verificação_buffer1: Falhou
+Verificação_buffer1 -> RT: Passou
+RT -> Verificação_buffer2: Verifica integridade
+RT <- Verificação_buffer2: Falhou
+Verificação_buffer2 -> TR: Passou
