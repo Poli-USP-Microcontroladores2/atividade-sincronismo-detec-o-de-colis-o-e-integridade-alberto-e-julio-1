@@ -4,7 +4,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <string.h>
  
-#define BOARD_TYPE 1 // StartMode = TX(1) or RX(0)
+#define BOARD_TYPE 0 // StartMode = TX(1) or RX(0)
 
 // Define UART ports
 #define UART_TX_NODE DT_NODELABEL(uart0) // UART for transmitting the echo (to PC)
