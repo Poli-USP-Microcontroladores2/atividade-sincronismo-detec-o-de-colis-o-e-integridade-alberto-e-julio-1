@@ -2,20 +2,15 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/gpio.h>
-
 #include <string.h>
  
 // Define UART ports
 #define UART_TX_NODE DT_NODELABEL(uart0) // UART for transmitting the echo (to PC)
 #define UART_RX_NODE DT_NODELABEL(uart1) // UART for receiving from the other MCU
 
-#define BUTTON_NODE DT_NODELABEL(user_button_0) //PTA16 button
-static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(BUTTON_NODE, gpios);
-
 // Visual Feedback
 static const struct gpio_dt_spec led_g = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static const struct gpio_dt_spec led_b = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
-static const struct gpio_dt_spec led_r = GPIO_DT_SPEC_GET(DT_ALIAS(led2), gpios);
 
 #define MSG_SIZE 32
 
@@ -29,15 +24,18 @@ static const struct device *const uart_rx_dev = DEVICE_DT_GET(UART_RX_NODE);
 static char rx_buf[MSG_SIZE];
 static int rx_buf_pos;
 
+// Define application states
+enum app_state {
+	STATE_RECEIVING,
+	STATE_TRANSMITTING
+};
 
 
 // Read characters from UART until line end is detected. Afterwards push the data to the message queue.
 void serial_cb(const struct device *dev, void *user_data)
 {
 	uint8_t c;
-
-	// Toggle the LED to confirm the interrupt is firing at all
-	gpio_pin_toggle_dt(&led_g);
+	// This callback is only active during the RECEIVING state.
 
 	if (!uart_irq_update(dev)) {
 		return;
@@ -77,54 +75,97 @@ void print_uart(char *buf)
 	}
 }
 
+// Function to blink an LED
+void blink_led(const struct gpio_dt_spec *led)
+{
+	gpio_pin_set_dt(led, 1);
+	k_msleep(100);
+	gpio_pin_set_dt(led, 0);
+}
 
 
 int main(void)
 {
-	// Configure button
-    if (!gpio_is_ready_dt(&button)) {
-        printk("Error: Button device not found!\n");
-        return;
-    }
-	gpio_pin_configure_dt(&button, GPIO_INPUT | GPIO_PULL_UP);
-
-	// Configure UART
-	char tx_buf[MSG_SIZE];
-
+	// --- Device Readiness Checks ---
 	if (!device_is_ready(uart_tx_dev)) {
 		printk("Error: UART TX (UART0) device not found!");
 		return 0;
 	}
 
-	// Visual Debug Check for UART1
-	if (!gpio_is_ready_dt(&led_g)) {
-		printk("Error: Debug LED not ready!");
-		return 0;
-	}
-	gpio_pin_configure_dt(&led_g, GPIO_OUTPUT_INACTIVE); /* LED is initially OFF */
-
 	if (!device_is_ready(uart_rx_dev)) {
 		printk("Error: UART RX (UART1) device not found!");
-		// Blink LED rapidly to indicate a fatal error
-		while (1) {
-			gpio_pin_toggle_dt(&led_g);
-			k_msleep(100);
-		}
-		return 0; /* This line will not be reached */
+		return 0;
 	}
 
-	// Manually connect our callback to IRQ 13 (UART1) and enable it. This bypasses the driver's faulty IRQ_CONNECT mechanism.
+	if (!gpio_is_ready_dt(&led_g)) {
+		printk("Error: Green LED not ready!");
+		return 0;
+	}
+
+	if (!gpio_is_ready_dt(&led_b)) {
+		printk("Error: Blue LED not ready!");
+		return 0;
+	}
+
+	// --- GPIO Configuration ---
+	gpio_pin_configure_dt(&led_g, GPIO_OUTPUT_INACTIVE);
+	gpio_pin_configure_dt(&led_b, GPIO_OUTPUT_INACTIVE);
+
+	// --- UART Interrupt Configuration ---
 	IRQ_CONNECT(DT_IRQN(UART_RX_NODE), DT_IRQ(UART_RX_NODE, priority), serial_cb, DEVICE_DT_GET(UART_RX_NODE), 0);
 	irq_enable(DT_IRQN(UART_RX_NODE));
-	uart_irq_rx_enable(uart_rx_dev);
 
-	print_uart("UART bridge started. Listening on UART1, echoing to UART0.\r\n");
+	// --- Main Application Loop ---
+	enum app_state current_state = STATE_RECEIVING; // Start in receiving state
+	char tx_buf[MSG_SIZE];
 
-	// Indefinitely wait for input from the user
-	while (k_msgq_get(&uart_msgq, &tx_buf, K_FOREVER) == 0) {
-		print_uart("ECHO:");
-		print_uart(tx_buf);
-		print_uart("\n");
+	while (1) {
+		if (current_state == STATE_TRANSMITTING) {
+			print_uart("--- Entering Transmitting Cycle (5s) ---\r\n");
+			
+			// Disable UART receive interrupt to ignore incoming messages
+			uart_irq_rx_disable(uart_rx_dev);
+
+			// Transmit "Message" every 1s for 5s
+			for (int i = 0; i < 5; i++) {
+				char *msg = "Message\r\n";
+				int msg_len = strlen(msg);
+				for (int j = 0; j < msg_len; j++) {
+					uart_poll_out(uart_rx_dev, msg[j]);
+				}
+				print_uart("Sent: Message\r\n");
+				blink_led(&led_b);
+				k_sleep(K_SECONDS(1));
+			}
+
+			// Switch to receiving state for the next cycle
+			current_state = STATE_RECEIVING;
+
+		} else { // STATE_RECEIVING
+			print_uart("--- Entering Receiving Cycle (5s) ---\r\n");
+
+			// Flush any old data from the queue before starting
+			k_msgq_purge(&uart_msgq);
+			rx_buf_pos = 0;
+
+			// Enable UART receive interrupt
+			uart_irq_rx_enable(uart_rx_dev);
+
+			// Wait for messages for 5 seconds
+			int64_t end_time = k_uptime_get() + 5000;
+			while (k_uptime_get() < end_time) {
+				// Check for a message with a short timeout
+				if (k_msgq_get(&uart_msgq, &tx_buf, K_MSEC(100)) == 0) {
+					print_uart("Recieved: ");
+					print_uart(tx_buf);
+					print_uart("\r\n");
+					blink_led(&led_g);
+				}
+			}
+
+			// Switch to transmitting state for the next cycle
+			current_state = STATE_TRANSMITTING;
+		}
 	}
 
 	return 0;
