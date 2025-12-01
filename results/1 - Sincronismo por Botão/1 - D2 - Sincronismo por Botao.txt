@@ -1,0 +1,11 @@
+Inicio do programa -> Idle
+Idle -> Verificar o Botão
+Verificar o Botão -> Idle: Não pressionado
+Idle -> Iniciar Pareamento: Pressionado
+Iniciar Pareamento -> Modo TX A: Se A
+Modo TX A -> Modo RX A: Após 5s
+Modo RX A -> Modo TX A: Após 5s
+
+Iniciar Pareamento -> Modo RX B: Se B
+Modo RX B -> Modo TX B: Após 5s
+Modo TX B -> Modo RX B: Após 5s

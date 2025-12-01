@@ -1,0 +1,6 @@
+TR -> RT: 5 segundos
+RT -> TR: 5 segundos
+RT -> TT: Perda de sincronismo
+TR -> TT: Perda de sincronismo
+TT -> RR_temp: Tratamento da colisão
+RR_temp -> TR: Fim do tratamento

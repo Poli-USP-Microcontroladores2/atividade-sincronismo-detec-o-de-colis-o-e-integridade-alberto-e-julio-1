@@ -1,0 +1,8 @@
+shape: sequence_diagram
+Computador A -> MCU A: UART0: Msg de A para B
+MCU A -> MCU B: UART1: Msg de A para B
+MCU B -> Computador B: UART0: Msg de A para B
+
+Computador B -> MCU B: UART0: Msg de B para A
+MCU B -> MCU A: UART1: Msg de B para A
+MCU A -> Computador A: UART0: Msg de B para A

@@ -1,0 +1,11 @@
+Teste 1-1: Funcionamento básico da placa
+Descrição/comportamento esperado: A implementação do código base de comunicação usando UART0 e UART1. As placas conseguem inicializar o modo RX e TX e alternam os modos a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem
+Critério de Aceitação: As placas realizam a troca dos modos e respondem/sinalizam adequadamente aos comandos.
+
+Teste 1-2: Tipos de placa.
+Descrição/comportamento esperado: Se a variável Board_Type for 1, iniciar como TX, caso contrário iniciar RX.
+Critério de Aceitação: As placas iniciam no modo correto de acordo com o valor pré-definido da variável.
+
+Teste 1-3: Responsividade ao botão.
+Descrição/comportamento esperado: As placas começam em modo Idle, aguardando o botão. Ao receberem o sinal, iniciam o ciclo de TX ou RX, dependendo se é a placa A ou B. Após 5s alternam para o outro modo (se TX -> RX, se RX -> TX).
+Critério de Aceitação: As placas respondem ao botão e alteram adequadamente o modo de operação.
