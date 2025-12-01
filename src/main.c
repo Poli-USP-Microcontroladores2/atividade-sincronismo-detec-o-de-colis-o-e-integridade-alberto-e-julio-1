@@ -4,6 +4,8 @@
 #include <zephyr/drivers/gpio.h>
 #include <string.h>
  
+#define BOARD_TYPE 1 // StartMode = TX(1) or RX(0)
+
 // Define UART ports
 #define UART_TX_NODE DT_NODELABEL(uart0) // UART for transmitting the echo (to PC)
 #define UART_RX_NODE DT_NODELABEL(uart1) // UART for receiving from the other MCU
@@ -92,6 +94,9 @@ void blink_led(const struct gpio_dt_spec *led)
 
 int main(void)
 {
+	printk("Starting... \n");
+	printk("Version: %s - %s\n", __DATE__, __TIME__);
+	printk("Board Type: %d \n", BOARD_TYPE);
 	// --- Device Readiness Checks ---
 	if (!device_is_ready(uart_tx_dev)) {
 		printk("Error: UART TX (UART0) device not found!");
@@ -122,7 +127,11 @@ int main(void)
 	irq_enable(DT_IRQN(UART_RX_NODE));
 
 	// --- Main Application Loop ---
-	enum app_state current_state = STATE_RECEIVING; // Start in receiving state
+	#if BOARD_TYPE == 1
+		enum app_state current_state = STATE_TRANSMITTING; // Start in transmitting state
+	#else
+		enum app_state current_state = STATE_RECEIVING; // Start in receiving state
+	#endif
 	char tx_buf[MSG_SIZE];
 
 	while (1) {
