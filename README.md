@@ -92,13 +92,75 @@ _Vocês devem adicionar todas as evidências de funcionamento (como por exemplo 
 As imagens e outras evidências de funcionamento devem estar descritas no README e devem estar em uma pasta chamada "results" no repositório._
 
 ## 2.1. Sincronismo por Botão
+### Teste 1-1: Funcionamento básico da placa:
+- **Descrição**:
+	- O código funciona adequadamente,  as placas conseguem inicializar o modo RX e TX e alternam os modos a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem.
 
-Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+- **Evidencias**:
+  - **"Prova 1-1 - LED"**:
+    - Descrição: LED acende quando enviam/recebem mensagem.
+    - Imagem:
+    - <img width="300" height="450" alt="d2" src="https://github.com/user-attachments/assets/1c4cfb76-d392-45c1-87e8-503732b52718" /><br/><br/>  
+
+
+  - **"Prova 1-1 - Osciloscopio"**:
+    - Descrição: A mensagem enviada via UART1 no osciloscópio
+    - Imagem:
+    - <img width="400" height="300" alt="d2" src="https://github.com/user-attachments/assets/a1833272-abdd-4823-917f-881a1e4ef097" /><br/><br/>  
+
+      
+  - **"Prova 1-1 - TXRX - Console"**:
+    -  Descrição: Console mostrando o envio/recebimento das mensagens.
+    -  Imagem:
+    -  <img width="500" height="150" alt="Prova 1-1 - TXRX - Console" src="https://github.com/user-attachments/assets/63ad0bc0-35ab-4d0d-ba45-b98760983663" /><br/><br/>  
+
+	
+### Teste 1-2: Tipos de placa.
+- **Descrição**:
+  - O código funciona adequadamente, se a variável Board_Type for 1, a placa inicia como TX, caso contrário ela inicia como RX.
+
+- **Evidencias**:
+  - **"Prova 1-2 - Console"**:
+    - Descrição: Imagem do console mostrando o tipo da placa e sua inicialização.
+    - Imagem:
+    - <img width="433" height="345" alt="Prova 1-2 - Console" src="https://github.com/user-attachments/assets/7f24d441-fb0c-4877-9099-318a8018c6b9" /><br/><br/>  
+
+  
+### Teste 1-3: Responsividade ao botão.
+- **Descrição**:
+  - O código funciona adequadamente, o MCU inicia em modo Idle, sem transmitir nem enviar. Ao receber o input do botão, a placa inicia o ciclo TX ou RX, dependendo do seu Board_Type.
+
+- **Evidencias**:
+  - **"Prova 1-3 - Console"**:
+    - Descrição: Imagem do console mostrando que a placa aguarda o acionamento do botão para iniciar o modo TX ou RX.
+    - Imagem:
+    - <img width="368" height="346" alt="Prova 1-3 - Console" src="https://github.com/user-attachments/assets/ed12c05e-10ed-4f59-937f-356b10b757d7" /><br/><br/>  
+
 
 ## 2.2. Chat Entre Placas
 
-Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+### Teste 2-1: Envio de mensagens via UART1
 
+- **Descrição**:
+  - As placas conseguem enviar via UART1 as mensagens digitadas no console de maneira adequada, observa-se no osciloscópio o envio das mensagens via UART1.
+    
+- **Evidencias**:
+  - **"Prova 2-1 - Osciloscopio"**:
+    - Descrição: Imagem no osciloscópio, mostrando o envio da mensagem que havia sido digitada no console ("Chat Entre Placas")
+    - Imagem:
+  
+### Teste 2-2: Recebimento de mensagens via UART1 e replicação no console
+- **Descrição**:
+    - Ao receber uma mensagem via UART1, a placa a replica corretamente no console (UART0).
+      
+- **Evidencias**:
+  - **"Prova 2-2 - Console"**:
+    - Descrição: Imagem no console, mostrando o envio e recebimento das mensagens entre os computadores utilizando os MCU.
+    - Imagem:
+    - <img width="600" height="400" alt="Prova - Chat Funcional" src="https://github.com/user-attachments/assets/f2238a7e-e785-4767-94eb-f8b6c48b61ab" /><br/><br/>  
+
+    
+ 
 ## 2.3. Detecção de Colisão
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
