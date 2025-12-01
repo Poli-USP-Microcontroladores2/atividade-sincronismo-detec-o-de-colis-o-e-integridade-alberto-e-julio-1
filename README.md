@@ -1,28 +1,52 @@
 # PSI-Microcontroladores2-Aula12
 Atividade: Sincronismo, Detecção de Colisão e Integridade
-
-## Introdução
-
-Na atividade anterior, vocês desenvolveram um código de comunicação serial que utiliza filas e interrupção para operar em dois modos: recepção por 5 segundos e transmissão por 5 segundos.
-
-Nesta atividade, o objetivo é realizar em duplas a comunicação entre duas placas e refinar o protocolo de comunicação com sincronismo, detecção de colisão e verificação de integridade.
-
-_Lembrete_: o código-base para a atividade anterior está disponível em: https://github.com/zephyrproject-rtos/zephyr/tree/main/samples/drivers/uart/echo_bot
+## Alunos: 
+Alberto Galhego Neto - NUSP: 17019141
+Júlio Cesar Braga Parro - NUSP: 16879560
 
 ## Etapa 1: Modelagem e Planejamento de Testes
 
-Considerando o cenário proposto de comunicação entre duas placas com modo de operação simples de 5 segundos para transmitir e 5 segundos para receber, é natural que ocorram problemas de sincronismo: uma placa pode acabar transmitindo enquanto a outra está transmitindo também, e mesmo no recebimento podemos não receber a mensagem completa.
-
 ### 1.1. Sincronismo por Botão
 
-A proposta é elaborar um sincronismo entre as duas placas por meio de um botão, de forma similar ao realizado na atividade de semáforos de pedestres e veículos. Dica: provavelmente os códigos não serão os mesmos, ou algum ajuste adaptativo deve ser realizado para que uma placa esteja no modo de transmissão após o usuário apertar o botão, e a outra placa esteja no modo de recepção.
+#### Enunciado
+  A proposta é elaborar um sincronismo entre as duas placas por meio de um botão, de forma similar ao realizado na atividade de semáforos de pedestres e veículos. Dica: provavelmente os códigos não serão os mesmos, ou algum ajuste adaptativo deve ser realizado para     que uma placa esteja no modo de transmissão após o usuário apertar o botão, e a outra placa esteja no modo de recepção.
 
-_Elabore um diagrama de transição de estados inicial para modelar como as duas placas irão interagir com o sincronismo por botão, considerando os diversos estados possíveis e os eventos que determinam as transições de estados (vocês podem utilizar o D2 diagrams visto em atividade anterior: https://play.d2lang.com/)_.
 
-_Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de sincronismo por meio de botão, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: como não terá o canal de comunicação com o computador, podem utilizar o led da placa para indicar a transmissão e recepção de informações)_.
-A ideia é descrever o teste primeiro antes da implementação, de acordo com o TDD visto na atividade passada.
+#### Diagrama D2
+  <img width="335" height="500" alt="Etapa 1-1 D2" src="https://github.com/user-attachments/assets/f3780593-ecc7-48fa-979f-30c2e56918f9" />
 
-### 1.2. Detecção de Colisão
+
+#### Testes:
+  ##### Teste 1-1: Funcionamento básico da placa
+  - Descrição/comportamento esperado: A implementação do código base de comunicação usando UART0 e UART1. As placas conseguem inicializar o modo RX e TX e alternam os modos a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem
+  - Critério de Aceitação: As placas realizam a troca dos modos e respondem/sinalizam adequadamente aos comandos.
+  
+  ##### Teste 1-2: Tipos de placa.
+  - Descrição/comportamento esperado: Se a variável Board_Type for 1, definida durante a compilação, iniciar como TX, caso contrário iniciar RX.
+  - Critério de Aceitação: As placas iniciam no modo correto de acordo com o valor pré-definido da variável.
+  
+  ##### Teste 1-3: Responsividade ao botão.
+  - Descrição/comportamento esperado: As placas começam em modo Idle, aguardando o botão. Ao receberem o sinal, iniciam o ciclo de TX ou RX, dependendo se é a placa A ou B. Após 5s alternam para o outro modo (se TX -> RX, se RX -> TX).
+  - Critério de Aceitação: As placas respondem ao botão e alteram adequadamente o modo de operação.
+  
+  ### 1.2. Chat Entre Placas
+  #### Enunciado:
+  A proposta é elaborar um sistema onde dois computadores possam enviar mensagens entre si utilizando as 2 placas, cada uma conectada a um computador. As mensagens digitadas no console do computador A (UART0), deverão ser enviadas via UART1 para o computador B, que as repetirá via UART0 para serem exibidas no console. A comunicação deverá ser bidirecional.
+
+
+#### Diagrama D2:
+
+
+#### Testes:
+  ##### Teste 2-1: Envio de mensagens via UART1
+  - Descrição/comportamento esperado: As placas conseguem enviar via UART1 as mensagens digitadas no console.
+  - Critério de Aceitação: Ao digitar uma mensagem no console, a placa a envia via UART1 para o outro MCU.
+  
+  ##### Teste 2-2: Recebimento de mensagens via UART1 e replicação no console
+  - Descrição/comportamento esperado: Ao receber uma mensagem via UART1, a placa a replica no console (UART0).
+  - Critério de Aceitação: A placa realiza o comportamento esperado adequadamente.
+
+### 1.3. Detecção de Colisão
 
 Reflita inicialmente se vocês consideram o sincronismo feito por botão algo perfeito, ou se ele pode falhar.
 _Será que é necessário fazer um sincronismo periódico?_
@@ -34,7 +58,7 @@ _Elabore um diagrama de transição de estados (versão 2) para modelar como as 
 
 _Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de detecção de colisão, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: é possível mapear os estados mais relevantes a comportamentos do led da placa para observar o seu funcionamento?)_.
 
-### 1.3. Verificação de Integridade
+### 1.4. Verificação de Integridade
 
 Reflita inicialmente o que ocorre com as mensagens transmitidas e recebidas em caso de colisão.
 
@@ -64,10 +88,14 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
 
-### 2.2. Detecção de Colisão
+### 2.2. Chat Entre Placas
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
 
-### 2.3. Verificação de Integridade
+### 2.3. Detecção de Colisão
+
+Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+
+### 2.4. Verificação de Integridade
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
