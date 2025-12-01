@@ -1,57 +1,57 @@
 # PSI-Microcontroladores2-Aula12
 Atividade: Sincronismo, Detecção de Colisão e Integridade
 ## Alunos: 
-Alberto Galhego Neto - NUSP: 17019141
-Júlio Cesar Braga Parro - NUSP: 16879560
+- Alberto Galhego Neto - NUSP: 17019141
+- Júlio Cesar Braga Parro - NUSP: 16879560
 
-## Etapa 1: Modelagem e Planejamento de Testes
+# Etapa 1: Modelagem e Planejamento de Testes
 
-### 1.1. Sincronismo por Botão
+## 1.1. Sincronismo por Botão
 
-#### Enunciado
+### Enunciado
   A proposta é elaborar um sincronismo entre as duas placas por meio de um botão, de forma similar ao realizado na atividade de semáforos de pedestres e veículos. Dica: provavelmente os códigos não serão os mesmos, ou algum ajuste adaptativo deve ser realizado para     que uma placa esteja no modo de transmissão após o usuário apertar o botão, e a outra placa esteja no modo de recepção.
 
 
-#### Diagrama D2
+### Diagrama D2
   <img width="335" height="500" alt="Etapa 1-1 D2" src="https://github.com/user-attachments/assets/f3780593-ecc7-48fa-979f-30c2e56918f9" />
 
 
-#### Testes:
-  ##### Teste 1-1: Funcionamento básico da placa
+### Testes:
+  #### Teste 1-1: Funcionamento básico da placa
   - Descrição/comportamento esperado: A implementação do código base de comunicação usando UART0 e UART1. As placas conseguem inicializar o modo RX e TX e alternam os modos a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem
   - Critério de Aceitação: As placas realizam a troca dos modos e respondem/sinalizam adequadamente aos comandos.
   
-  ##### Teste 1-2: Tipos de placa.
+  #### Teste 1-2: Tipos de placa.
   - Descrição/comportamento esperado: Se a variável Board_Type for 1, definida durante a compilação, iniciar como TX, caso contrário iniciar RX.
   - Critério de Aceitação: As placas iniciam no modo correto de acordo com o valor pré-definido da variável.
   
-  ##### Teste 1-3: Responsividade ao botão.
+  #### Teste 1-3: Responsividade ao botão.
   - Descrição/comportamento esperado: As placas começam em modo Idle, aguardando o botão. Ao receberem o sinal, iniciam o ciclo de TX ou RX, dependendo se é a placa A ou B. Após 5s alternam para o outro modo (se TX -> RX, se RX -> TX).
   - Critério de Aceitação: As placas respondem ao botão e alteram adequadamente o modo de operação.
 
 ---
 
-  ### 1.2. Chat Entre Placas
-  #### Enunciado:
+  ## 1.2. Chat Entre Placas
+  ### Enunciado:
   A proposta é elaborar um sistema onde dois computadores possam enviar mensagens entre si utilizando as 2 placas, cada uma conectada a um computador. As mensagens digitadas no console do computador A (UART0), deverão ser enviadas via UART1 para o computador B, que as repetirá via UART0 para serem exibidas no console. A comunicação deverá ser bidirecional.
 
 
-#### Diagrama D2:
+### Diagrama D2:
 <img width="500" height="450" alt="d2" src="https://github.com/user-attachments/assets/89d1e4d0-4cb6-4156-a7d2-4b2e224b80f2" />
 
 
-#### Testes:
-  ##### Teste 2-1: Envio de mensagens via UART1
+### Testes:
+  #### Teste 2-1: Envio de mensagens via UART1
   - Descrição/comportamento esperado: As placas conseguem enviar via UART1 as mensagens digitadas no console.
   - Critério de Aceitação: Ao digitar uma mensagem no console, a placa a envia via UART1 para o outro MCU.
   
-  ##### Teste 2-2: Recebimento de mensagens via UART1 e replicação no console
+  #### Teste 2-2: Recebimento de mensagens via UART1 e replicação no console
   - Descrição/comportamento esperado: Ao receber uma mensagem via UART1, a placa a replica no console (UART0).
   - Critério de Aceitação: A placa realiza o comportamento esperado adequadamente.
 
 ---
 
-### 1.3. Detecção de Colisão
+## 1.3. Detecção de Colisão
 
 Reflita inicialmente se vocês consideram o sincronismo feito por botão algo perfeito, ou se ele pode falhar.
 _Será que é necessário fazer um sincronismo periódico?_
@@ -65,7 +65,7 @@ _Descreva um teste para verificação de correto funcionamento do sistema consid
 
 ---
 
-### 1.4. Verificação de Integridade
+## 1.4. Verificação de Integridade
 
 Reflita inicialmente o que ocorre com as mensagens transmitidas e recebidas em caso de colisão.
 
@@ -77,9 +77,9 @@ _Elabore um diagrama de transição de estados (versão 3) para modelar como as 
 
 _Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de verificação de integridade, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: podemos mapear a correta verificação de integridade a comportamentos da placa?)_.
 
-## Etapa 2: Desenvolvimento Orientado a Testes
+# Etapa 2: Desenvolvimento Orientado a Testes
 
-A partir da modelagem realizada e dos testes planejados, faça o desenvolvimento da solução para contemplar os 3 requisitos e passar nos 3 testes descritos.
+A partir da modelagem realizada e dos testes planejados, faça o desenvolvimento da solução para contemplar os 3 requisitos e passar nos 4 testes descritos.
 
 O uso de IA Generativa é incentivado: _veja a diferença entre fazer prompts sem fornecer os requisitos e testes planejados, ou usar prompts com os diagramas e testes planejados_.
 
@@ -91,18 +91,18 @@ _Faça o upload de todos os códigos no repositório_ (pode ser em branches dife
 _Vocês devem adicionar todas as evidências de funcionamento (como por exemplo capturas de tela e fotos) dos testes realizados, mostrando todos os testes realizados no README.
 As imagens e outras evidências de funcionamento devem estar descritas no README e devem estar em uma pasta chamada "results" no repositório._
 
-### 2.1. Sincronismo por Botão
+## 2.1. Sincronismo por Botão
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
 
-### 2.2. Chat Entre Placas
+## 2.2. Chat Entre Placas
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
 
-### 2.3. Detecção de Colisão
+## 2.3. Detecção de Colisão
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
 
-### 2.4. Verificação de Integridade
+## 2.4. Verificação de Integridade
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
