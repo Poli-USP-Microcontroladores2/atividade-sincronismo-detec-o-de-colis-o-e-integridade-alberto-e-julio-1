@@ -47,7 +47,12 @@ void serial_cb(const struct device *dev, void *user_data)
 
 	// read until FIFO empty
 	while (uart_fifo_read(dev, &c, 1) == 1) {
-		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
+		// Ignore leading newline characters
+		if (rx_buf_pos == 0 && (c == '\n' || c == '\r')) {
+			continue;
+		}
+
+		if ((c == '\n' || c == '\r')) { // Message is complete
 			// terminate string
 			rx_buf[rx_buf_pos] = '\0';
 
@@ -56,6 +61,7 @@ void serial_cb(const struct device *dev, void *user_data)
 
 			// reset the buffer (it was copied to the msgq)
 			rx_buf_pos = 0;
+
 		} else if (rx_buf_pos < (sizeof(rx_buf) - 1)) {
 			rx_buf[rx_buf_pos++] = c;
 		}
@@ -146,6 +152,7 @@ int main(void)
 
 			// Flush any old data from the queue before starting
 			k_msgq_purge(&uart_msgq);
+			memset(rx_buf, 0, sizeof(rx_buf));
 			rx_buf_pos = 0;
 
 			// Enable UART receive interrupt
