@@ -100,7 +100,7 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
   - **"Prova 1-1 - LED"**:
     - Descrição: LED acende quando enviam/recebem mensagem.
     - Imagem:
-    - <img width="300" height="450" alt="d2" src="https://github.com/user-attachments/assets/1c4cfb76-d392-45c1-87e8-503732b52718" /><br/><br/>  
+    - <img width="300" height="450" alt="d2" src="https://github.com/user-attachments/assets/a2bb996e-399e-4541-912b-fbf8e61b568d" /><br/><br/>  
 
 
   - **"Prova 1-1 - Osciloscopio"**:
@@ -148,6 +148,7 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
   - **"Prova 2-1 - Osciloscopio"**:
     - Descrição: Imagem no osciloscópio, mostrando o envio da mensagem que havia sido digitada no console ("Chat Entre Placas")
     - Imagem:
+    - <img width="600" height="450" alt="Prova - Chat Funcional" src="https://github.com/user-attachments/assets/82fc7f21-6789-45b0-80ec-f2431a1e2734" /><br/><br/>  
   
 ### Teste 2-2: Recebimento de mensagens via UART1 e replicação no console
 - **Descrição**:
