@@ -136,6 +136,7 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
     - Imagem:
     - <img width="368" height="346" alt="Prova 1-3 - Console" src="https://github.com/user-attachments/assets/ed12c05e-10ed-4f59-937f-356b10b757d7" /><br/><br/>  
 
+---
 
 ## 2.2. Chat Entre Placas
 
@@ -161,10 +162,13 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
     - <img width="600" height="400" alt="Prova - Chat Funcional" src="https://github.com/user-attachments/assets/f2238a7e-e785-4767-94eb-f8b6c48b61ab" /><br/><br/>  
 
     
+ ---
  
 ## 2.3. Detecção de Colisão
 
 Insira aqui as descrições dos resultados e referencie as fotos e capturas de tela que mostram o funcionamento.
+
+---
 
 ## 2.4. Verificação de Integridade
 
