@@ -28,7 +28,9 @@ Júlio Cesar Braga Parro - NUSP: 16879560
   ##### Teste 1-3: Responsividade ao botão.
   - Descrição/comportamento esperado: As placas começam em modo Idle, aguardando o botão. Ao receberem o sinal, iniciam o ciclo de TX ou RX, dependendo se é a placa A ou B. Após 5s alternam para o outro modo (se TX -> RX, se RX -> TX).
   - Critério de Aceitação: As placas respondem ao botão e alteram adequadamente o modo de operação.
-  
+
+---
+
   ### 1.2. Chat Entre Placas
   #### Enunciado:
   A proposta é elaborar um sistema onde dois computadores possam enviar mensagens entre si utilizando as 2 placas, cada uma conectada a um computador. As mensagens digitadas no console do computador A (UART0), deverão ser enviadas via UART1 para o computador B, que as repetirá via UART0 para serem exibidas no console. A comunicação deverá ser bidirecional.
@@ -46,6 +48,8 @@ Júlio Cesar Braga Parro - NUSP: 16879560
   - Descrição/comportamento esperado: Ao receber uma mensagem via UART1, a placa a replica no console (UART0).
   - Critério de Aceitação: A placa realiza o comportamento esperado adequadamente.
 
+---
+
 ### 1.3. Detecção de Colisão
 
 Reflita inicialmente se vocês consideram o sincronismo feito por botão algo perfeito, ou se ele pode falhar.
@@ -57,6 +61,8 @@ Para lidar com este problema, a proposta é elaborar uma detecção de colisão:
 _Elabore um diagrama de transição de estados (versão 2) para modelar como as duas placas irão interagir com o sincronismo por botão e a detecção de colisão, considerando os diversos estados possíveis e os eventos que determinam as transições de estados (vocês podem utilizar o D2 diagrams visto em atividade anterior: https://play.d2lang.com/)_.
 
 _Descreva um teste para verificação de correto funcionamento do sistema considerando este requisito de detecção de colisão, contemplando pré-condição, etapas do teste e pós-condição, de forma similar ao realizado em atividades anteriores (Dica: é possível mapear os estados mais relevantes a comportamentos do led da placa para observar o seu funcionamento?)_.
+
+---
 
 ### 1.4. Verificação de Integridade
 
