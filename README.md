@@ -94,11 +94,11 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
 ## 2.1. Sincronismo por Botão
 ### Teste 1-1: Funcionamento básico da placa:
 - **Descrição**:
-	- O código funciona adequadamente,  as placas conseguem inicializar o modo RX e TX e alternam os modos a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem.
+	- O código funciona adequadamente. A placa consegue inicializar o modo RX e TX, alternando o modo a cada 5s, respondendo com o LED azul quando enviam mensagem e verde quando recebem.
 
 - **Evidencias**:
   - **"Prova 1-1 - LED"**:
-    - Descrição: LED acende quando enviam/recebem mensagem.
+    - Descrição: LED acende quando envia/recebe mensagem.
     - Imagem:
     - <img width="300" height="450" alt="d2" src="https://github.com/user-attachments/assets/a2bb996e-399e-4541-912b-fbf8e61b568d" /><br/><br/>  
 
@@ -117,7 +117,7 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
 	
 ### Teste 1-2: Tipos de placa.
 - **Descrição**:
-  - O código funciona adequadamente, se a variável Board_Type for 1, a placa inicia como TX, caso contrário ela inicia como RX.
+  - O código funciona adequadamente. Se a variável Board_Type for 1, a placa inicia como TX, caso contrário ela inicia como RX.
 
 - **Evidencias**:
   - **"Prova 1-2 - Console"**:
@@ -128,7 +128,7 @@ As imagens e outras evidências de funcionamento devem estar descritas no README
   
 ### Teste 1-3: Responsividade ao botão.
 - **Descrição**:
-  - O código funciona adequadamente, o MCU inicia em modo Idle, sem transmitir nem enviar. Ao receber o input do botão, a placa inicia o ciclo TX ou RX, dependendo do seu Board_Type.
+  - O código funciona adequadamente. o MCU inicia em modo Idle, sem transmitir nem enviar. Ao receber o input do botão, a placa inicia o ciclo TX ou RX, dependendo do seu Board_Type.
 
 - **Evidencias**:
   - **"Prova 1-3 - Console"**:
