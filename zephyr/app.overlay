@@ -1,0 +1,7 @@
+/* Button configuration for frdm_kl25z */
+/ {
+    aliases {
+        /* PTA16 is used for the button */
+        sw0 = &button0;
+    };
+};
